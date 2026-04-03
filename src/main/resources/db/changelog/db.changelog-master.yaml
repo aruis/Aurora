@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-init-schema
+      author: codex
+      sqlFile:
+        path: db/changelog/sql/001-init-schema.sql
+        relativeToChangelogFile: false

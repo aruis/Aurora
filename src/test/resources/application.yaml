@@ -1,8 +1,6 @@
 spring:
-  application:
-    name: aurora
   datasource:
-    url: jdbc:sqlite:./aurora.db
+    url: jdbc:sqlite:./build/aurora-test.db
     driver-class-name: org.sqlite.JDBC
   jpa:
     hibernate:
@@ -10,14 +8,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
-        format_sql: true
     open-in-view: false
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
-
-server:
-  servlet:
-    session:
-      cookie:
-        http-only: true
