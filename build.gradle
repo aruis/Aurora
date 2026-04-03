@@ -17,6 +17,9 @@ repositories {
 	mavenCentral()
 }
 
+def webDir = layout.projectDirectory.dir("web")
+def webBuildDir = webDir.dir("dist")
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -33,4 +36,32 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.register('webInstall', Exec) {
+	workingDir webDir.asFile
+	commandLine 'sh', '-lc', 'pnpm install'
+	inputs.file webDir.file('package.json')
+	inputs.file webDir.file('pnpm-lock.yaml')
+	outputs.dir webDir.dir('node_modules')
+}
+
+tasks.register('webBuild', Exec) {
+	dependsOn tasks.named('webInstall')
+	workingDir webDir.asFile
+	commandLine 'sh', '-lc', 'pnpm build'
+	inputs.dir webDir.dir('src')
+	inputs.file webDir.file('package.json')
+	inputs.file webDir.file('vite.config.ts')
+	inputs.file webDir.file('tsconfig.app.json')
+	inputs.file webDir.file('tsconfig.json')
+	inputs.file webDir.file('tsconfig.node.json')
+	outputs.dir webBuildDir
+}
+
+tasks.named('processResources') {
+	dependsOn tasks.named('webBuild')
+	from(webBuildDir) {
+		into 'static'
+	}
 }

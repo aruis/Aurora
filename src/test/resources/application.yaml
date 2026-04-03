@@ -12,3 +12,8 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:5173
