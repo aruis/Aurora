@@ -20,13 +20,11 @@
 - Gradle 构建
 
 当前仓库尚未引入：
-- Spring Security
-- H2 驱动
-- 数据库迁移工具
-- 会话或令牌认证实现
+- SQLite 驱动
+- 认证与授权实现
 - 业务模块代码
 
-因此，v1 的后续编码建议按“先补基础依赖，再搭业务骨架”的顺序推进。
+因此，v1 的后续编码建议按“先补 SQLite 和登录鉴权基础能力，再搭业务骨架”的顺序推进。
 
 ## 3. 系统架构
 
@@ -36,10 +34,10 @@
 
 推荐分层：
 - Controller：处理 HTTP 请求和响应。
-- Service：承载业务规则与事务控制。
+- Service：承载业务规则。
 - Repository：基于 JDBC 执行数据库访问。
 - Model/DTO：承载领域对象、请求对象、响应对象。
-- Security：处理认证、授权、当前用户上下文。
+- Auth：处理登录、权限和当前用户上下文。
 
 ### 3.2 模块范围
 
@@ -51,47 +49,40 @@
 - 回款模块
 - 通用异常与统一响应模块
 
-### 3.3 技术建议
+### 3.3 技术取舍
 
-虽然当前仓库仅包含 WebMVC 和 JDBC，但为了让后续开发更顺畅，建议补充以下依赖：
-- `spring-boot-starter-security`
-- `com.h2database:h2`
-- 数据库迁移工具，优先 `Flyway`
-- 测试所需的安全与接口测试依赖
-
-其中：
-- 数据访问仍按 JDBC 思路实现。
-- 不引入重型 ORM，避免在简单项目中增加学习和维护成本。
+v1 以简单可用为目标，明确以下取舍：
+- 数据库使用 SQLite。
+- 数据访问按 JDBC 实现。
+- 不引入重型 ORM。
+- 不预设复杂中间件、分布式能力或额外基础设施。
 
 ## 4. 认证与授权设计
 
-## 4.1 认证方式
+### 4.1 认证方式
 
 系统采用账号密码登录。
 
-为兼容前后端分离，建议认证机制采用令牌模式：
-- 登录成功后返回访问令牌。
-- 前端后续请求通过 `Authorization` 请求头携带令牌。
-- 格式为 `Bearer <token>`。
+文档只固定业务行为，不提前写死认证载体。实现阶段可根据开发便利性选择：
+- session/cookie
+- 其他轻量登录态方案
 
-v1 建议：
-- 使用服务端可校验的轻量令牌方案。
-- 若实现成本优先，可先使用自定义 token + 服务端存储方案。
-- 若希望更标准，也可在实现阶段选用 JWT，但应保持对前端透明。
-
-为避免文档与实现脱节，v1 只固定接口行为，不强制绑定 JWT。
+无论采用哪种方式，都需要满足：
+- 登录后可以识别当前用户。
+- 受保护接口需要登录后访问。
+- 登出后当前登录态失效。
 
 ### 4.2 登录规则
 
 - 用户名存在且账号启用时才允许继续校验密码。
-- 密码校验通过后，生成新的访问令牌。
+- 密码校验通过后，建立登录态。
 - 返回当前用户基础信息及角色集合。
 - 登录失败返回统一错误信息，不暴露过多内部细节。
 
 ### 4.3 登出规则
 
-- 客户端调用登出接口后，当前令牌失效。
-- 后续使用该令牌访问受保护接口时应返回未认证。
+- 客户端调用登出接口后，当前登录态失效。
+- 后续再次访问受保护接口时应返回未登录。
 
 ### 4.4 授权规则
 
@@ -104,7 +95,6 @@ v1 建议：
 - 用户可绑定多个角色。
 - 多角色权限按并集生效。
 - 不做数据范围隔离。
-- 不做动态权限点配置。
 
 推荐的接口访问控制如下：
 
@@ -138,13 +128,13 @@ v1 建议：
 
 | 字段 | 类型建议 | 说明 |
 | --- | --- | --- |
-| id | bigint | 主键 |
-| username | varchar(64) | 登录名，唯一 |
-| password_hash | varchar(255) | 密码哈希 |
-| display_name | varchar(64) | 展示名称 |
-| enabled | boolean | 是否启用 |
-| created_at | timestamp | 创建时间 |
-| updated_at | timestamp | 更新时间 |
+| id | integer | 主键 |
+| username | text | 登录名，唯一 |
+| password_hash | text | 密码哈希 |
+| display_name | text | 展示名称 |
+| enabled | integer | 是否启用 |
+| created_at | text/datetime | 创建时间 |
+| updated_at | text/datetime | 更新时间 |
 
 说明：
 - 密码仅存哈希值，不存明文。
@@ -154,9 +144,9 @@ v1 建议：
 
 | 字段 | 类型建议 | 说明 |
 | --- | --- | --- |
-| id | bigint | 主键 |
-| code | varchar(32) | 角色编码，唯一 |
-| name | varchar(64) | 角色名称 |
+| id | integer | 主键 |
+| code | text | 角色编码，唯一 |
+| name | text | 角色名称 |
 
 预置数据：
 - `ADMIN`
@@ -167,8 +157,8 @@ v1 建议：
 
 | 字段 | 类型建议 | 说明 |
 | --- | --- | --- |
-| user_id | bigint | 用户 ID |
-| role_id | bigint | 角色 ID |
+| user_id | integer | 用户 ID |
+| role_id | integer | 角色 ID |
 
 说明：
 - 使用联合唯一约束避免重复绑定。
@@ -177,14 +167,14 @@ v1 建议：
 
 | 字段 | 类型建议 | 说明 |
 | --- | --- | --- |
-| id | bigint | 主键 |
-| name | varchar(128) | 项目名称 |
-| customer | varchar(128) | 客户名称 |
-| contract_no | varchar(64) | 合同号 |
+| id | integer | 主键 |
+| name | text | 项目名称 |
+| customer | text | 客户名称 |
+| contract_no | text | 合同号 |
 | signing_date | date | 签约时间 |
 | contract_amount | decimal(18,2) | 合同金额 |
-| created_at | timestamp | 创建时间 |
-| updated_at | timestamp | 更新时间 |
+| created_at | text/datetime | 创建时间 |
+| updated_at | text/datetime | 更新时间 |
 
 说明：
 - 不存储“已开票金额”和“已回款金额”。
@@ -193,23 +183,23 @@ v1 建议：
 
 | 字段 | 类型建议 | 说明 |
 | --- | --- | --- |
-| id | bigint | 主键 |
-| project_id | bigint | 所属项目 |
+| id | integer | 主键 |
+| project_id | integer | 所属项目 |
 | amount | decimal(18,2) | 开票金额 |
 | invoice_date | date | 开票时间 |
-| created_at | timestamp | 创建时间 |
-| updated_at | timestamp | 更新时间 |
+| created_at | text/datetime | 创建时间 |
+| updated_at | text/datetime | 更新时间 |
 
 #### `payments`
 
 | 字段 | 类型建议 | 说明 |
 | --- | --- | --- |
-| id | bigint | 主键 |
-| project_id | bigint | 所属项目 |
+| id | integer | 主键 |
+| project_id | integer | 所属项目 |
 | amount | decimal(18,2) | 回款金额 |
 | payment_date | date | 回款时间 |
-| created_at | timestamp | 创建时间 |
-| updated_at | timestamp | 更新时间 |
+| created_at | text/datetime | 创建时间 |
+| updated_at | text/datetime | 更新时间 |
 
 ### 5.3 关系约束
 
@@ -230,40 +220,18 @@ v1 建议：
 - `receivedAmount = sum(payments.amount where project_id = ?)`
 
 实现建议：
-- 列表查询可通过关联子查询或聚合视图一次性返回。
-- 详情查询可单独聚合计算。
+- 列表和详情查询时实时聚合计算。
 - 空值按 `0.00` 返回。
 
 ## 6. API 设计
 
-## 6.1 通用约定
+### 6.1 通用约定
 
 基础约定：
 - 所有接口路径前缀建议为 `/api`。
-- 响应体使用统一 JSON 格式。
 - 日期字段统一使用 `yyyy-MM-dd`。
 - 金额字段使用十进制，JSON 中返回数值类型。
-- 分页参数建议为 `page`、`size`。
-
-统一响应格式建议：
-
-```json
-{
-  "code": "OK",
-  "message": "success",
-  "data": {}
-}
-```
-
-失败示例：
-
-```json
-{
-  "code": "PROJECT_HAS_RECORDS",
-  "message": "项目下存在开票或回款记录，不能删除",
-  "data": null
-}
-```
+- 接口返回结构保持统一，但具体字段命名可在实现阶段一起收敛。
 
 ### 6.2 认证接口
 
@@ -282,26 +250,24 @@ v1 建议：
 
 ```json
 {
-  "code": "OK",
-  "message": "success",
-  "data": {
-    "token": "token-value",
-    "user": {
-      "id": 1,
-      "username": "admin",
-      "displayName": "管理员",
-      "enabled": true,
-      "roles": ["ADMIN"]
-    }
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "displayName": "管理员",
+    "enabled": true,
+    "roles": ["ADMIN"]
   }
 }
 ```
+
+说明：
+- 如果认证实现需要返回额外登录态信息，可在实现阶段补充。
 
 #### `POST /api/auth/logout`
 
 说明：
 - 需要登录后调用。
-- 令牌失效。
+- 使当前登录态失效。
 
 #### `GET /api/auth/me`
 
@@ -314,7 +280,6 @@ v1 建议：
 
 说明：
 - 查询用户列表。
-- 支持按用户名、启用状态筛选。
 - 仅管理员可访问。
 
 #### `POST /api/users`
@@ -362,8 +327,8 @@ v1 建议：
 #### `GET /api/projects`
 
 说明：
-- 分页查询项目。
-- 支持按名称、客户、合同号模糊查询。
+- 查询项目列表。
+- 支持按名称、客户、合同号查询。
 - 返回项目基础信息和汇总金额。
 
 返回对象建议：
@@ -466,7 +431,7 @@ v1 建议：
 说明：
 - 删除后项目汇总金额应实时变化。
 
-## 7. 校验与错误码设计
+## 7. 校验与异常处理
 
 ### 7.1 参数校验
 
@@ -481,59 +446,19 @@ v1 建议：
 - 回款时间不能为空。
 - 所有金额必须大于 0。
 
-### 7.2 业务错误码建议
-
-| 错误码 | 含义 |
-| --- | --- |
-| `UNAUTHORIZED` | 未登录或令牌无效 |
-| `FORBIDDEN` | 无权限访问 |
-| `USER_DISABLED` | 账号已停用 |
-| `INVALID_CREDENTIALS` | 用户名或密码错误 |
-| `USER_NOT_FOUND` | 用户不存在 |
-| `USERNAME_ALREADY_EXISTS` | 用户名已存在 |
-| `PROJECT_NOT_FOUND` | 项目不存在 |
-| `PROJECT_HAS_RECORDS` | 项目下存在开票或回款记录，不能删除 |
-| `INVOICE_NOT_FOUND` | 开票记录不存在 |
-| `PAYMENT_NOT_FOUND` | 回款记录不存在 |
-| `VALIDATION_ERROR` | 请求参数校验失败 |
-
 ## 8. 初始化与开发约定
 
 ### 8.1 数据库初始化
 
-H2 环境建议通过 SQL 脚本或迁移工具初始化以下内容：
+SQLite 环境建议初始化以下内容：
 - 基础表结构。
 - 默认角色数据。
-- 一个默认管理员账号。
+- 初始可登录账号。
 
-默认管理员可用于本地开发和演示，示例：
-- 用户名：`admin`
-- 初始密码：`admin123`
-
-说明：
-- 实际实现中应支持通过配置覆盖默认密码。
-- 文档中保留示例，便于联调和本地演示。
-
-### 8.2 包结构建议
-
-建议在 `net.ximatai.aurora` 下按业务组织：
-- `auth`
-- `user`
-- `project`
-- `invoice`
-- `payment`
-- `common`
-- `config`
-
-### 8.3 事务建议
-
-- 新增、修改、删除操作在 Service 层控制事务。
-- 登录、查询类接口默认使用只读事务或无事务。
-
-### 8.4 安全建议
+### 8.2 安全建议
 
 - 密码哈希建议使用强哈希算法。
-- 不在日志中打印密码、令牌等敏感信息。
+- 不在日志中打印密码和登录凭证等敏感信息。
 - 错误响应不泄露底层 SQL 或堆栈信息。
 
 ## 9. 测试方案
@@ -578,7 +503,7 @@ H2 环境建议通过 SQL 脚本或迁移工具初始化以下内容：
 
 ### 9.6 集成演示场景
 
-基于 H2 完成最小闭环：
+基于 SQLite 完成最小闭环：
 1. 使用管理员登录。
 2. 创建项目。
 3. 新增开票记录。
@@ -588,7 +513,7 @@ H2 环境建议通过 SQL 脚本或迁移工具初始化以下内容：
 ## 10. 后续实现顺序建议
 
 建议按以下顺序落地：
-1. 补充基础依赖与 H2 配置。
+1. 补充 SQLite 和登录鉴权所需依赖与配置。
 2. 建立数据库表和初始化数据。
 3. 实现认证与当前用户能力。
 4. 实现用户管理。
