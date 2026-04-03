@@ -23,3 +23,12 @@ export async function getCurrentUser() {
   const { data } = await http.get<CurrentUser>('/api/auth/me')
   return data
 }
+
+export type ChangePasswordPayload = {
+  oldPassword: string
+  newPassword: string
+}
+
+export async function changePassword(payload: ChangePasswordPayload) {
+  await http.post('/api/auth/change-password', payload)
+}

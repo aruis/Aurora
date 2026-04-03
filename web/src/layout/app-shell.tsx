@@ -1,15 +1,19 @@
 import {
+  KeyOutlined,
   DashboardOutlined,
   FolderOpenOutlined,
   LogoutOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
-import { Avatar, Breadcrumb, Button, Dropdown, Layout, Menu, Space, Typography } from 'antd'
+import { Avatar, Breadcrumb, Button, Dropdown, Form, Input, Layout, Menu, Modal, Typography, message } from 'antd'
 import { useMutation } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { applyFormErrors } from '@/lib/forms'
+import { isApiError } from '@/lib/http'
 import { queryClient } from '@/lib/query-client'
-import { logout } from '@/modules/auth/api'
+import { changePassword, logout } from '@/modules/auth/api'
 import { clearSession, useSessionStore } from '@/modules/auth/session-store'
 
 const { Content, Header, Sider } = Layout
@@ -32,6 +36,13 @@ export function AppShell() {
       ? [{ key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> }]
       : []),
   ]
+  const [messageApi, contextHolder] = message.useMessage()
+  const [passwordForm] = Form.useForm<{
+    oldPassword: string
+    newPassword: string
+    confirmPassword: string
+  }>()
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
 
   const logoutMutation = useMutation({
     mutationFn: logout,
@@ -41,9 +52,19 @@ export function AppShell() {
       navigate('/login', { replace: true })
     },
   })
+  const changePasswordMutation = useMutation({
+    mutationFn: changePassword,
+    onSuccess: () => {
+      messageApi.success('密码修改成功')
+      setPasswordModalOpen(false)
+      passwordForm.resetFields()
+    },
+  })
+  const roleText = user?.roles.join(' / ') ?? ''
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      {contextHolder}
       <Sider width={244} breakpoint="lg" collapsedWidth={84} style={{ padding: '18px 16px' }}>
         <div style={{ color: '#fff', padding: '12px 14px 24px' }}>
           <Typography.Text style={{ color: 'rgba(255,255,255,0.72)', letterSpacing: 2 }}>
@@ -92,6 +113,12 @@ export function AppShell() {
               menu={{
                 items: [
                   {
+                    key: 'change-password',
+                    icon: <KeyOutlined />,
+                    label: '修改密码',
+                    onClick: () => setPasswordModalOpen(true),
+                  },
+                  {
                     key: 'logout',
                     icon: <LogoutOutlined />,
                     label: '退出登录',
@@ -101,14 +128,71 @@ export function AppShell() {
               }}
               trigger={['click']}
             >
-              <Button type="text" style={{ height: 'auto', paddingInline: 0 }}>
-                <Space size={12}>
-                  <Avatar style={{ backgroundColor: '#1d3d70' }}>{user?.displayName?.slice(0, 1) ?? 'A'}</Avatar>
-                  <Space direction="vertical" size={0} style={{ alignItems: 'flex-start', lineHeight: 1.35 }}>
-                    <Typography.Text strong>{user?.displayName}</Typography.Text>
-                    <Typography.Text type="secondary">{user?.roles.join(' / ')}</Typography.Text>
-                  </Space>
-                </Space>
+              <Button
+                type="text"
+                style={{
+                  height: 'auto',
+                  padding: '6px 10px',
+                  borderRadius: 14,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    minWidth: 0,
+                    maxWidth: 280,
+                  }}
+                >
+                  <Avatar
+                    size={34}
+                    style={{
+                      backgroundColor: '#1d3d70',
+                      flex: '0 0 auto',
+                    }}
+                  >
+                    {user?.displayName?.slice(0, 1) ?? 'A'}
+                  </Avatar>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      justifyContent: 'center',
+                      minWidth: 0,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    <Typography.Text
+                      strong
+                      style={{
+                        maxWidth: '100%',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {user?.displayName}
+                    </Typography.Text>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        display: 'block',
+                        maxWidth: '100%',
+                        marginTop: 2,
+                        fontSize: 12,
+                        lineHeight: 1.2,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={roleText}
+                    >
+                      {roleText}
+                    </Typography.Text>
+                  </div>
+                </div>
               </Button>
             </Dropdown>
           </div>
@@ -117,6 +201,71 @@ export function AppShell() {
           <Outlet />
         </Content>
       </Layout>
+      <Modal
+        title="修改密码"
+        open={passwordModalOpen}
+        onCancel={() => {
+          setPasswordModalOpen(false)
+          passwordForm.resetFields()
+        }}
+        onOk={() => passwordForm.submit()}
+        confirmLoading={changePasswordMutation.isPending}
+        destroyOnHidden
+      >
+        <Form<{
+          oldPassword: string
+          newPassword: string
+          confirmPassword: string
+        }>
+          form={passwordForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            try {
+              await changePasswordMutation.mutateAsync({
+                oldPassword: values.oldPassword,
+                newPassword: values.newPassword,
+              })
+            }
+            catch (error) {
+              if (!applyFormErrors(passwordForm, error) && isApiError(error)) {
+                messageApi.error(error.message)
+              }
+            }
+          }}
+        >
+          <Form.Item label="原密码" name="oldPassword" rules={[{ required: true, message: '请输入原密码' }]}>
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            label="新密码"
+            name="newPassword"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { min: 6, message: '新密码至少 6 位' },
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            label="确认新密码"
+            name="confirmPassword"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: '请再次输入新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve()
+                  }
+                  return Promise.reject(new Error('两次输入的新密码不一致'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   )
 }

@@ -60,6 +60,9 @@ class AuroraApplicationTests {
 		jdbcTemplate.update("DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE username <> 'admin')");
 		jdbcTemplate.update("DELETE FROM users WHERE username <> 'admin'");
 		AppUser admin = userRepository.findByUsername("admin").orElseThrow();
+		admin.setPasswordHash(passwordEncoder.encode("admin123"));
+		admin.setDisplayName("管理员");
+		admin.setEnabled(true);
 		admin.setRoles(new java.util.LinkedHashSet<>(roleRepository.findByCodeIn(Set.of(RoleCode.ADMIN))));
 		userRepository.save(admin);
 	}
@@ -78,6 +81,40 @@ class AuroraApplicationTests {
 
 		mockMvc.perform(get("/api/auth/me").session(session))
 			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void currentUserCanChangeOwnPassword() throws Exception {
+		MockHttpSession session = login("admin", "admin123");
+
+		mockMvc.perform(post("/api/auth/change-password").session(session)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"oldPassword":"wrong-old-password","newPassword":"newpass123"}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("原密码不正确"));
+
+		mockMvc.perform(post("/api/auth/change-password").session(session)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"oldPassword":"admin123","newPassword":"newpass123"}
+					"""))
+			.andExpect(status().isNoContent());
+
+		mockMvc.perform(post("/api/auth/login")
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"username":"admin","password":"admin123"}
+					"""))
+			.andExpect(status().isUnauthorized());
+
+		mockMvc.perform(post("/api/auth/login")
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"username":"admin","password":"newpass123"}
+					"""))
+			.andExpect(status().isOk());
 	}
 
 	@Test

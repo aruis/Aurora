@@ -28,10 +28,13 @@ public class AuthController {
 
 	private final AuthenticationManager authenticationManager;
 	private final SecurityContextRepository securityContextRepository;
+	private final AuthService authService;
 
-	public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository securityContextRepository) {
+	public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository securityContextRepository,
+		AuthService authService) {
 		this.authenticationManager = authenticationManager;
 		this.securityContextRepository = securityContextRepository;
+		this.authService = authService;
 	}
 
 	@PostMapping("/login")
@@ -64,5 +67,12 @@ public class AuthController {
 	@GetMapping("/me")
 	public CurrentUserResponse me(@AuthenticationPrincipal AppUserPrincipal principal) {
 		return CurrentUserResponse.fromPrincipal(principal);
+	}
+
+	@PostMapping("/change-password")
+	public ResponseEntity<Void> changePassword(@AuthenticationPrincipal AppUserPrincipal principal,
+		@Valid @RequestBody ChangePasswordRequest request) {
+		authService.changePassword(principal.getId(), request);
+		return ResponseEntity.noContent().build();
 	}
 }
