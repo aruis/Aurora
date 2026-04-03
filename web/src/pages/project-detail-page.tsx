@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
   Descriptions,
   Empty,
   Form,
@@ -15,6 +14,7 @@ import {
   Row,
   Space,
   Table,
+  Typography,
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -23,6 +23,7 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import { LocalizedDatePicker } from '@/components/localized-date-picker'
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
 import { applyFormErrors } from '@/lib/forms'
@@ -222,28 +223,39 @@ export function ProjectDetailPage() {
   const project = projectQuery.data
 
   return (
-    <Space direction="vertical" size={24} style={{ width: '100%' }}>
+    <div className="page-stack">
       {contextHolder}
       <PageHeader
+        eyebrow="Project Detail"
         title={project?.name ?? '项目详情'}
         description="查看项目核心信息，以及项目下的开票和回款明细。"
       />
 
-      <PageSection title="项目概览">
-        <Descriptions column={4} items={[
-          { key: 'customer', label: '客户', children: project?.customer },
-          { key: 'contractNo', label: '合同号', children: project?.contractNo },
-          { key: 'signingDate', label: '签约日期', children: formatDate(project?.signingDate) },
-          { key: 'contractAmount', label: '合同金额', children: formatCurrency(project?.contractAmount) },
-          { key: 'invoiceAmount', label: '累计开票', children: formatCurrency(project?.invoicedAmount) },
-          { key: 'paymentAmount', label: '累计回款', children: formatCurrency(project?.receivedAmount) },
-        ]} />
+      <PageSection title="项目概览" subtitle="先看资金状态，再核对项目基础信息。">
+        <div className="detail-overview">
+          <div className="detail-kpis">
+            <KpiCard label="合同金额" value={formatCurrency(project?.contractAmount)} variant="primary" />
+            <KpiCard label="累计开票" value={formatCurrency(project?.invoicedAmount)} variant="warning" />
+            <KpiCard label="累计回款" value={formatCurrency(project?.receivedAmount)} variant="success" />
+          </div>
+          <Descriptions
+            column={{ xs: 1, sm: 2, xl: 3 }}
+            items={[
+              { key: 'customer', label: '客户', children: project?.customer },
+              { key: 'contractNo', label: '合同号', children: project?.contractNo },
+              { key: 'signingDate', label: '签约日期', children: formatDate(project?.signingDate) },
+              { key: 'invoiceAmount', label: '开票完成度', children: getRateText(project?.invoicedAmount, project?.contractAmount) },
+              { key: 'paymentAmount', label: '回款转化率', children: getRateText(project?.receivedAmount, project?.invoicedAmount) },
+            ]}
+          />
+        </div>
       </PageSection>
 
       <Row gutter={[20, 20]}>
         <Col xs={24} xl={12}>
           <PageSection
             title="开票记录"
+            subtitle="记录项目已开票金额与日期，便于核对合同执行进度。"
             extra={
               <Button
                 type="primary"
@@ -258,18 +270,39 @@ export function ProjectDetailPage() {
               </Button>
             }
           >
-            <Table
-              rowKey="id"
-              loading={invoicesQuery.isLoading}
-              dataSource={invoicesQuery.data ?? []}
-              columns={invoiceColumns}
-              pagination={false}
-            />
+            <div className="table-frame">
+              <Table
+                rowKey="id"
+                loading={invoicesQuery.isLoading}
+                dataSource={invoicesQuery.data ?? []}
+                columns={invoiceColumns}
+                pagination={false}
+                locale={{ emptyText: '暂无开票记录' }}
+                summary={(records) => (
+                  records.length > 0
+                    ? (
+                        <Table.Summary.Row>
+                          <Table.Summary.Cell index={0}>
+                            <Typography.Text strong>合计</Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={1} align="right">
+                            <Typography.Text strong>
+                              {formatCurrency(records.reduce((sum, item) => sum + Number(item.amount), 0))}
+                            </Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={2} />
+                        </Table.Summary.Row>
+                      )
+                    : null
+                )}
+              />
+            </div>
           </PageSection>
         </Col>
         <Col xs={24} xl={12}>
           <PageSection
             title="回款记录"
+            subtitle="追踪到账节奏，及时识别待回款项目。"
             extra={
               <Button
                 type="primary"
@@ -284,13 +317,33 @@ export function ProjectDetailPage() {
               </Button>
             }
           >
-            <Table
-              rowKey="id"
-              loading={paymentsQuery.isLoading}
-              dataSource={paymentsQuery.data ?? []}
-              columns={paymentColumns}
-              pagination={false}
-            />
+            <div className="table-frame">
+              <Table
+                rowKey="id"
+                loading={paymentsQuery.isLoading}
+                dataSource={paymentsQuery.data ?? []}
+                columns={paymentColumns}
+                pagination={false}
+                locale={{ emptyText: '暂无回款记录' }}
+                summary={(records) => (
+                  records.length > 0
+                    ? (
+                        <Table.Summary.Row>
+                          <Table.Summary.Cell index={0}>
+                            <Typography.Text strong>合计</Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={1} align="right">
+                            <Typography.Text strong>
+                              {formatCurrency(records.reduce((sum, item) => sum + Number(item.amount), 0))}
+                            </Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={2} />
+                        </Table.Summary.Row>
+                      )
+                    : null
+                )}
+              />
+            </div>
           </PageSection>
         </Col>
       </Row>
@@ -327,7 +380,10 @@ export function ProjectDetailPage() {
             <InputNumber style={{ width: '100%' }} min={0.01} precision={2} addonBefore="¥" />
           </Form.Item>
           <Form.Item label="开票日期" name="invoiceDate" rules={[{ required: true, message: '请选择开票日期' }]}>
-            <DatePicker style={{ width: '100%' }} />
+            <LocalizedDatePicker
+              style={{ width: '100%' }}
+              placeholder="请选择开票日期"
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -364,10 +420,35 @@ export function ProjectDetailPage() {
             <InputNumber style={{ width: '100%' }} min={0.01} precision={2} addonBefore="¥" />
           </Form.Item>
           <Form.Item label="回款日期" name="paymentDate" rules={[{ required: true, message: '请选择回款日期' }]}>
-            <DatePicker style={{ width: '100%' }} />
+            <LocalizedDatePicker
+              style={{ width: '100%' }}
+              placeholder="请选择回款日期"
+            />
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </div>
   )
+}
+
+function KpiCard(props: { label: string; value: string; variant: 'primary' | 'warning' | 'success' }) {
+  return (
+    <div className={`detail-kpi detail-kpi--${props.variant}`}>
+      <span className="detail-kpi__label">{props.label}</span>
+      <Typography.Text strong className="detail-kpi__value">
+        {props.value}
+      </Typography.Text>
+    </div>
+  )
+}
+
+function getRateText(numerator?: number | string, denominator?: number | string) {
+  const resolvedNumerator = Number(numerator ?? 0)
+  const resolvedDenominator = Number(denominator ?? 0)
+
+  if (resolvedDenominator <= 0) {
+    return '0.0%'
+  }
+
+  return `${((resolvedNumerator / resolvedDenominator) * 100).toFixed(1)}%`
 }

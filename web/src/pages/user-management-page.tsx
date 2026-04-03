@@ -11,6 +11,7 @@ import {
   Switch,
   Table,
   Tag,
+  Typography,
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -150,9 +151,10 @@ export function UserManagementPage() {
       key: 'actions',
       width: 260,
       render: (_, record) => (
-        <Space size={0}>
+        <Space wrap size={4}>
           <Button
             type="link"
+            style={{ paddingInline: 8 }}
             onClick={() => {
               setEditingUser(record)
               setEditorOpen(true)
@@ -169,11 +171,12 @@ export function UserManagementPage() {
             title={`确认${record.enabled ? '停用' : '启用'}该用户？`}
             onConfirm={() => toggleUserStatus(record)}
           >
-            <Button type="link">{record.enabled ? '停用' : '启用'}</Button>
+            <Button type="link" style={{ paddingInline: 8 }}>{record.enabled ? '停用' : '启用'}</Button>
           </Popconfirm>
           <Button
             type="link"
             icon={<LockOutlined />}
+            style={{ paddingInline: 8 }}
             onClick={() => {
               setEditingUser(record)
               setPasswordOpen(true)
@@ -187,16 +190,22 @@ export function UserManagementPage() {
     },
   ]
 
+  const users = usersQuery.data ?? []
+  const enabledCount = users.filter((item) => item.enabled).length
+  const adminCount = users.filter((item) => item.roles.includes('ADMIN')).length
+
   return (
     <PermissionGuard roles={['ADMIN']}>
-      <Space direction="vertical" size={24} style={{ width: '100%' }}>
+      <div className="page-stack">
         {contextHolder}
         <PageHeader
+          eyebrow="Admin"
           title="用户管理"
           description="维护系统账号、角色与启停状态，当前模块仅管理员可见。"
           extra={
             <Button
               type="primary"
+              size="large"
               icon={<PlusOutlined />}
               onClick={() => {
                 setEditingUser(null)
@@ -210,8 +219,33 @@ export function UserManagementPage() {
           }
         />
 
-        <PageSection title="账号列表">
-          <Table rowKey="id" loading={usersQuery.isLoading} dataSource={usersQuery.data ?? []} columns={columns} />
+        <div className="summary-strip">
+          <SummaryChip label="账号总数" value={String(users.length)} />
+          <SummaryChip label="启用账号" value={String(enabledCount)} />
+          <SummaryChip label="管理员" value={String(adminCount)} />
+          <SummaryChip label="停用账号" value={String(users.length - enabledCount)} />
+        </div>
+
+        <PageSection title="账号列表" subtitle="支持编辑、启停和密码重置，避免来回进入详情页。">
+          <div className="table-frame">
+            <Table
+              rowKey="id"
+              loading={usersQuery.isLoading}
+              dataSource={users}
+              columns={columns}
+              scroll={{ x: 900 }}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: false,
+                showTotal: (total) => `共 ${total} 个账号`,
+              }}
+              footer={() => (
+                <Typography.Text type="secondary">
+                  建议至少保留 1 个启用中的管理员账号，便于后续权限维护。
+                </Typography.Text>
+              )}
+            />
+          </div>
         </PageSection>
 
         <Modal
@@ -289,7 +323,18 @@ export function UserManagementPage() {
             </Form.Item>
           </Form>
         </Modal>
-      </Space>
+      </div>
     </PermissionGuard>
+  )
+}
+
+function SummaryChip(props: { label: string; value: string }) {
+  return (
+    <div className="summary-chip">
+      <span className="summary-chip__label">{props.label}</span>
+      <Typography.Text strong className="summary-chip__value">
+        {props.value}
+      </Typography.Text>
+    </div>
   )
 }

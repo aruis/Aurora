@@ -1,13 +1,14 @@
 import { DeleteOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Button, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, message } from 'antd'
+import { Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { LocalizedDatePicker } from '@/components/localized-date-picker'
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
 import { applyFormErrors } from '@/lib/forms'
@@ -66,6 +67,11 @@ export function ProjectListPage() {
     },
   })
 
+  const projects = projectsQuery.data ?? []
+  const contractTotal = projects.reduce((sum, item) => sum + Number(item.contractAmount), 0)
+  const invoiceTotal = projects.reduce((sum, item) => sum + Number(item.invoicedAmount), 0)
+  const paymentTotal = projects.reduce((sum, item) => sum + Number(item.receivedAmount), 0)
+
   const columns: ColumnsType<ProjectSummary> = [
     {
       title: '项目名称',
@@ -83,12 +89,13 @@ export function ProjectListPage() {
       key: 'actions',
       width: 190,
       render: (_, record) => (
-        <Space size={0}>
-          <Button type="link" icon={<EyeOutlined />}>
+        <Space wrap size={4}>
+          <Button type="link" icon={<EyeOutlined />} style={{ paddingInline: 8 }}>
             <Link to={`/projects/${record.id}`}>详情</Link>
           </Button>
           <Button
             type="link"
+            style={{ paddingInline: 8 }}
             onClick={() => {
               setEditingProject(record)
               setEditorOpen(true)
@@ -117,7 +124,7 @@ export function ProjectListPage() {
               }
             }}
           >
-            <Button type="link" danger icon={<DeleteOutlined />}>
+            <Button type="link" danger icon={<DeleteOutlined />} style={{ paddingInline: 8 }}>
               删除
             </Button>
           </Popconfirm>
@@ -127,14 +134,16 @@ export function ProjectListPage() {
   ]
 
   return (
-    <Space direction="vertical" size={24} style={{ width: '100%' }}>
+    <div className="page-stack">
       {contextHolder}
       <PageHeader
+        eyebrow="Projects"
         title="项目管理"
         description="集中维护项目基础信息、合同台账以及项目级别的开票与回款汇总。"
         extra={
           <Button
             type="primary"
+            size="large"
             icon={<PlusOutlined />}
             onClick={() => {
               setEditingProject(null)
@@ -147,26 +156,33 @@ export function ProjectListPage() {
         }
       />
 
-      <PageSection title="筛选条件">
+      <div className="summary-strip">
+        <SummaryChip label="项目数量" value={String(projects.length)} />
+        <SummaryChip label="合同总额" value={formatCurrency(contractTotal)} />
+        <SummaryChip label="累计开票" value={formatCurrency(invoiceTotal)} />
+        <SummaryChip label="累计回款" value={formatCurrency(paymentTotal)} />
+      </div>
+
+      <PageSection title="筛选条件" subtitle="按项目名称、客户和合同号快速定位目标记录。" muted>
         <Form<SearchFormValues> form={searchForm} layout="vertical" onFinish={(values) => setFilters(values)}>
-          <Row gutter={16}>
-            <Col span={8}>
+          <Row gutter={[16, 4]}>
+            <Col xs={24} md={12} xl={8}>
               <Form.Item label="项目名称" name="name">
                 <Input placeholder="支持模糊搜索" allowClear />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} md={12} xl={8}>
               <Form.Item label="客户名称" name="customer">
                 <Input placeholder="输入客户名称" allowClear />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} md={12} xl={8}>
               <Form.Item label="合同号" name="contractNo">
                 <Input placeholder="输入合同号" allowClear />
               </Form.Item>
             </Col>
           </Row>
-          <Space>
+          <div className="table-toolbar">
             <Button type="primary" htmlType="submit">
               查询
             </Button>
@@ -178,12 +194,33 @@ export function ProjectListPage() {
             >
               重置
             </Button>
-          </Space>
+          </div>
         </Form>
       </PageSection>
 
-      <PageSection title="项目列表">
-        <Table rowKey="id" loading={projectsQuery.isLoading} dataSource={projectsQuery.data ?? []} columns={columns} />
+      <PageSection
+        title="项目列表"
+        subtitle="支持直接进入详情、编辑或删除，优先保留高频操作。"
+        extra={(
+          <Typography.Text type="secondary">
+            当前显示 {projects.length} 条记录
+          </Typography.Text>
+        )}
+      >
+        <div className="table-frame">
+          <Table
+            rowKey="id"
+            loading={projectsQuery.isLoading}
+            dataSource={projects}
+            columns={columns}
+            scroll={{ x: 980 }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `共 ${total} 条`,
+            }}
+          />
+        </div>
       </PageSection>
 
       <Modal
@@ -215,28 +252,31 @@ export function ProjectListPage() {
             }
           }}
         >
-          <Row gutter={16}>
-            <Col span={12}>
+          <Row gutter={[16, 4]}>
+            <Col xs={24} md={12}>
               <Form.Item label="项目名称" name="name" rules={[{ required: true, message: '请输入项目名称' }]}>
                 <Input />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item label="客户名称" name="customer" rules={[{ required: true, message: '请输入客户名称' }]}>
                 <Input />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item label="合同号" name="contractNo" rules={[{ required: true, message: '请输入合同号' }]}>
                 <Input />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item label="签约日期" name="signingDate" rules={[{ required: true, message: '请选择签约日期' }]}>
-                <DatePicker style={{ width: '100%' }} />
+                <LocalizedDatePicker
+                  style={{ width: '100%' }}
+                  placeholder="请选择签约日期"
+                />
               </Form.Item>
             </Col>
-            <Col span={24}>
+            <Col xs={24}>
               <Form.Item label="合同金额" name="contractAmount" rules={[{ required: true, message: '请输入合同金额' }]}>
                 <InputNumber style={{ width: '100%' }} min={0.01} precision={2} addonBefore="¥" />
               </Form.Item>
@@ -244,6 +284,19 @@ export function ProjectListPage() {
           </Row>
         </Form>
       </Modal>
-    </Space>
+    </div>
+  )
+}
+
+function SummaryChip(props: { label: string; value: string }) {
+  const fontSize = props.value.length > 12 ? 22 : props.value.length > 8 ? 26 : 28
+
+  return (
+    <div className="summary-chip">
+      <span className="summary-chip__label">{props.label}</span>
+      <Typography.Text strong className="summary-chip__value" style={{ fontSize }}>
+        {props.value}
+      </Typography.Text>
+    </div>
   )
 }

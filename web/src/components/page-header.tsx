@@ -6,31 +6,25 @@ type PageHeaderProps = PropsWithChildren<{
   title: string
   description?: string
   extra?: ReactNode
+  eyebrow?: string
 }>
 
-export function PageHeader({ title, description, extra, children }: PageHeaderProps) {
+export function PageHeader({ title, description, extra, children, eyebrow }: PageHeaderProps) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: 24,
-        marginBottom: 24,
-      }}
-    >
-      <Space direction="vertical" size={6}>
-        <Typography.Title level={2} style={{ margin: 0, fontSize: 28 }}>
+    <div className="page-header">
+      <Space direction="vertical" size={6} className="page-header__content">
+        {eyebrow ? <span className="page-header__eyebrow">{eyebrow}</span> : null}
+        <Typography.Title level={2} className="page-header__title">
           {title}
         </Typography.Title>
         {description ? (
-          <Typography.Text type="secondary" style={{ maxWidth: 720 }}>
+          <Typography.Text type="secondary" className="page-header__description">
             {description}
           </Typography.Text>
         ) : null}
         {children}
       </Space>
-      {extra}
+      {extra ? <div className="page-header__extra">{extra}</div> : null}
     </div>
   )
 }

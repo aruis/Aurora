@@ -3,11 +3,13 @@ import {
   DashboardOutlined,
   FolderOpenOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
 import { Avatar, Breadcrumb, Button, Dropdown, Form, Input, Layout, Menu, Modal, Typography, message } from 'antd'
 import { useMutation } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { applyFormErrors } from '@/lib/forms'
@@ -29,6 +31,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const user = useSessionStore((state) => state.user)
   const pathSnippets = location.pathname.split('/').filter(Boolean)
+  const [collapsed, setCollapsed] = useState(false)
   const menuItems = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: <Link to="/dashboard">仪表盘</Link> },
     { key: '/projects', icon: <FolderOpenOutlined />, label: <Link to="/projects">项目管理</Link> },
@@ -61,20 +64,43 @@ export function AppShell() {
     },
   })
   const roleText = user?.roles.join(' / ') ?? ''
+  const breadcrumbItems = useMemo(() => {
+    if (pathSnippets.length === 0) {
+      return [{ title: '仪表盘' }]
+    }
+
+    return pathSnippets.map((segment, index) => ({
+      title:
+        index === pathSnippets.length - 1 && /^\d+$/.test(segment)
+          ? `项目 #${segment}`
+          : breadcrumbNameMap[segment] ?? segment,
+    }))
+  }, [pathSnippets])
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout className="app-shell">
       {contextHolder}
-      <Sider width={244} breakpoint="lg" collapsedWidth={84} style={{ padding: '18px 16px' }}>
-        <div style={{ color: '#fff', padding: '12px 14px 24px' }}>
-          <Typography.Text style={{ color: 'rgba(255,255,255,0.72)', letterSpacing: 2 }}>
+      <Sider
+        className="app-shell__sider"
+        width={260}
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        breakpoint="lg"
+        collapsedWidth={84}
+        trigger={null}
+      >
+        <div className="app-shell__brand">
+          <Typography.Text className="app-shell__brand-mark">
             AURORA
           </Typography.Text>
-          <Typography.Title level={4} style={{ color: '#fff', margin: '8px 0 0' }}>
+          <Typography.Title level={4} className="app-shell__brand-title">
             业务管理台
           </Typography.Title>
+          {!collapsed ? <span className="app-shell__brand-copy">项目、合同、开票与回款统一协同</span> : null}
         </div>
         <Menu
+          className="app-shell__menu"
           theme="dark"
           mode="inline"
           selectedKeys={[`/${pathSnippets[0] ?? 'dashboard'}`]}
@@ -82,33 +108,25 @@ export function AppShell() {
           style={{ borderInlineEnd: 'none' }}
         />
       </Sider>
-      <Layout>
-        <Header
-          style={{
-            padding: '0 28px',
-            borderBottom: '1px solid rgba(216, 224, 236, 0.9)',
-            backdropFilter: 'blur(14px)',
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-          }}
-        >
-          <div
-            style={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <Breadcrumb
-              items={pathSnippets.map((segment, index) => ({
-                title:
-                  index === pathSnippets.length - 1 && /^\d+$/.test(segment)
-                    ? `项目 #${segment}`
-                    : breadcrumbNameMap[segment] ?? segment,
-              }))}
-            />
+      <Layout className="app-shell__main">
+        <Header className="app-shell__header">
+          <div className="app-shell__header-inner">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                minWidth: 0,
+              }}
+            >
+              <Button
+                type="text"
+                aria-label={collapsed ? '展开导航' : '收起导航'}
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed((value) => !value)}
+              />
+              <Breadcrumb className="app-shell__breadcrumb" items={breadcrumbItems} />
+            </div>
             <Dropdown
               menu={{
                 items: [
@@ -130,11 +148,7 @@ export function AppShell() {
             >
               <Button
                 type="text"
-                style={{
-                  height: 'auto',
-                  padding: '6px 10px',
-                  borderRadius: 14,
-                }}
+                className="app-shell__user-trigger"
               >
                 <div
                   style={{
@@ -197,8 +211,10 @@ export function AppShell() {
             </Dropdown>
           </div>
         </Header>
-        <Content style={{ padding: 28 }}>
-          <Outlet />
+        <Content className="app-shell__content">
+          <div className="app-shell__content-frame">
+            <Outlet />
+          </div>
         </Content>
       </Layout>
       <Modal
