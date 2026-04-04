@@ -3,6 +3,7 @@ spring:
     name: aurora
   datasource:
     # Windows example: jdbc:sqlite:C:/aurora/data/aurora.db
+    # Demo example: jdbc:sqlite:./aurora-demo.db
     url: jdbc:sqlite:./aurora.db
     driver-class-name: org.sqlite.JDBC
   jpa:
@@ -24,6 +25,9 @@ server:
         http-only: true
 
 app:
+  admin:
+    bootstrap-password: admin123
+    reset-on-startup: false
   cors:
     allowed-origins:
       - http://localhost:5173

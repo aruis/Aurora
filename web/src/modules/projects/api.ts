@@ -23,6 +23,8 @@ export type ProjectFilters = {
   name?: string
   customer?: string
   contractNo?: string
+  signingDateStart?: string
+  signingDateEnd?: string
 }
 
 export type InvoiceRecord = {

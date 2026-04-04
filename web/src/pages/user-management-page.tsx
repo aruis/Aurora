@@ -47,6 +47,10 @@ type PasswordFormValues = {
   newPassword: string
 }
 
+function isProtectedAdmin(user: User) {
+  return user.username.toLowerCase() === 'admin'
+}
+
 export function UserManagementPage() {
   const queryClient = useQueryClient()
   const [messageApi, contextHolder] = message.useMessage()
@@ -167,14 +171,22 @@ export function UserManagementPage() {
           >
             编辑
           </Button>
-          <Popconfirm
-            title={`确认${record.enabled ? '停用' : '启用'}该用户？`}
-            okText="确定"
-            cancelText="取消"
-            onConfirm={() => toggleUserStatus(record)}
-          >
-            <Button type="link" style={{ paddingInline: 8 }}>{record.enabled ? '停用' : '启用'}</Button>
-          </Popconfirm>
+          {isProtectedAdmin(record)
+            ? (
+                <Typography.Text type="secondary" style={{ paddingInline: 8 }}>
+                  不可禁用
+                </Typography.Text>
+              )
+            : (
+                <Popconfirm
+                  title={`确认${record.enabled ? '停用' : '启用'}该用户？`}
+                  okText="确定"
+                  cancelText="取消"
+                  onConfirm={() => toggleUserStatus(record)}
+                >
+                  <Button type="link" style={{ paddingInline: 8 }}>{record.enabled ? '停用' : '启用'}</Button>
+                </Popconfirm>
+              )}
           <Button
             type="link"
             icon={<LockOutlined />}
@@ -293,8 +305,15 @@ export function UserManagementPage() {
               <Select mode="multiple" options={ROLE_OPTIONS} />
             </Form.Item>
             <Form.Item label="启用状态" name="enabled" valuePropName="checked">
-              <Switch checkedChildren="启用" unCheckedChildren="停用" />
+              <Switch
+                checkedChildren="启用"
+                unCheckedChildren="停用"
+                disabled={editingUser ? isProtectedAdmin(editingUser) : false}
+              />
             </Form.Item>
+            {editingUser && isProtectedAdmin(editingUser)
+              ? <Typography.Text type="secondary">admin 用户为系统保留账号，不允许禁用。</Typography.Text>
+              : null}
           </Form>
         </Modal>
 

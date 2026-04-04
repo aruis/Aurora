@@ -1,7 +1,7 @@
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Button, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
@@ -25,7 +25,11 @@ import {
   type ProjectSummary,
 } from '@/modules/projects/api'
 
-type SearchFormValues = ProjectFilters
+const { RangePicker } = DatePicker
+
+type SearchFormValues = Omit<ProjectFilters, 'signingDateStart' | 'signingDateEnd'> & {
+  signingDateRange?: [Dayjs, Dayjs]
+}
 type ProjectEditorValues = {
   name: string
   customer: string
@@ -187,7 +191,19 @@ export function ProjectListPage() {
       </div>
 
       <PageSection title="筛选条件" subtitle="按项目名称、客户和合同号快速定位目标记录。" muted>
-        <Form<SearchFormValues> form={searchForm} layout="vertical" onFinish={(values) => setFilters(values)}>
+        <Form<SearchFormValues>
+          form={searchForm}
+          layout="vertical"
+          onFinish={(values) => {
+            setFilters({
+              name: values.name?.trim() || undefined,
+              customer: values.customer?.trim() || undefined,
+              contractNo: values.contractNo?.trim() || undefined,
+              signingDateStart: values.signingDateRange?.[0]?.format('YYYY-MM-DD'),
+              signingDateEnd: values.signingDateRange?.[1]?.format('YYYY-MM-DD'),
+            })
+          }}
+        >
           <Row gutter={[16, 4]}>
             <Col xs={24} md={12} xl={8}>
               <Form.Item label="项目名称" name="name">
@@ -202,6 +218,11 @@ export function ProjectListPage() {
             <Col xs={24} md={12} xl={8}>
               <Form.Item label="合同号" name="contractNo">
                 <Input placeholder="输入合同号" allowClear />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12} xl={8}>
+              <Form.Item label="签约日期" name="signingDateRange">
+                <RangePicker style={{ width: '100%' }} allowClear format="YYYY-MM-DD" inputReadOnly />
               </Form.Item>
             </Col>
           </Row>

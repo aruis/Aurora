@@ -1,8 +1,10 @@
 package net.ximatai.aurora.project;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,8 +31,10 @@ public class ProjectController {
 	@PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER', 'FINANCE')")
 	public List<ProjectSummary> list(@RequestParam(required = false) String name,
 		@RequestParam(required = false) String customer,
-		@RequestParam(required = false) String contractNo) {
-		return projectService.list(name, customer, contractNo);
+		@RequestParam(required = false) String contractNo,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate signingDateStart,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate signingDateEnd) {
+		return projectService.list(name, customer, contractNo, signingDateStart, signingDateEnd);
 	}
 
 	@GetMapping("/{id}")

@@ -55,6 +55,10 @@ type PaymentFormValues = {
   paymentDate: Dayjs
 }
 
+function compareDateValue(left: string, right: string) {
+  return dayjs(left).valueOf() - dayjs(right).valueOf()
+}
+
 export function ProjectDetailPage() {
   const { projectId } = useParams()
   const resolvedProjectId = Number(projectId)
@@ -121,7 +125,13 @@ export function ProjectDetailPage() {
   })
 
   const invoiceColumns: ColumnsType<InvoiceRecord> = [
-    { title: '开票日期', dataIndex: 'invoiceDate', render: formatDate },
+    {
+      title: '开票日期',
+      dataIndex: 'invoiceDate',
+      render: formatDate,
+      sorter: (a, b) => compareDateValue(a.invoiceDate, b.invoiceDate),
+      defaultSortOrder: 'ascend',
+    },
     { title: '开票金额', dataIndex: 'amount', align: 'right', render: formatCurrency },
     {
       title: '操作',
@@ -166,7 +176,13 @@ export function ProjectDetailPage() {
   ]
 
   const paymentColumns: ColumnsType<PaymentRecord> = [
-    { title: '回款日期', dataIndex: 'paymentDate', render: formatDate },
+    {
+      title: '回款日期',
+      dataIndex: 'paymentDate',
+      render: formatDate,
+      sorter: (a, b) => compareDateValue(a.paymentDate, b.paymentDate),
+      defaultSortOrder: 'ascend',
+    },
     { title: '回款金额', dataIndex: 'amount', align: 'right', render: formatCurrency },
     {
       title: '操作',

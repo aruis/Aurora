@@ -71,8 +71,14 @@ public class AuthController {
 
 	@PostMapping("/change-password")
 	public ResponseEntity<Void> changePassword(@AuthenticationPrincipal AppUserPrincipal principal,
-		@Valid @RequestBody ChangePasswordRequest request) {
+		@Valid @RequestBody ChangePasswordRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
 		authService.changePassword(principal.getId(), request);
+		HttpSession session = httpRequest.getSession(false);
+		if (session != null) {
+			session.invalidate();
+		}
+		SecurityContextHolder.clearContext();
+		securityContextRepository.saveContext(SecurityContextHolder.createEmptyContext(), httpRequest, httpResponse);
 		return ResponseEntity.noContent().build();
 	}
 }

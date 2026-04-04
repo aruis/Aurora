@@ -48,6 +48,7 @@ public class UserService {
 
 	public UserResponse update(Long id, UserUpdateRequest request) {
 		AppUser user = getUser(id);
+		assertAdminUserCannotBeDisabled(user, request.enabled());
 		user.setDisplayName(request.displayName());
 		user.setEnabled(request.enabled());
 		user.setRoles(resolveRoles(request.roles()));
@@ -62,6 +63,7 @@ public class UserService {
 
 	public UserResponse disable(Long id) {
 		AppUser user = getUser(id);
+		assertAdminUserCannotBeDisabled(user, false);
 		user.setEnabled(false);
 		return UserResponse.from(user);
 	}
@@ -73,6 +75,12 @@ public class UserService {
 
 	private AppUser getUser(Long id) {
 		return userRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+	}
+
+	private void assertAdminUserCannotBeDisabled(AppUser user, boolean enabled) {
+		if ("admin".equalsIgnoreCase(user.getUsername()) && !enabled) {
+			throw new BusinessException(HttpStatus.BAD_REQUEST, "admin 用户不允许被禁用");
+		}
 	}
 
 	private Set<Role> resolveRoles(Set<RoleCode> roleCodes) {

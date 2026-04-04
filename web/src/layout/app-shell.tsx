@@ -61,9 +61,12 @@ export function AppShell() {
   const changePasswordMutation = useMutation({
     mutationFn: changePassword,
     onSuccess: () => {
-      messageApi.success('密码修改成功')
+      messageApi.success('密码修改成功，请重新登录')
       setPasswordModalOpen(false)
       passwordForm.resetFields()
+      clearSession()
+      queryClient.clear()
+      navigate('/login', { replace: true })
     },
   })
   const roleText = user?.roles.join(' / ') ?? ''

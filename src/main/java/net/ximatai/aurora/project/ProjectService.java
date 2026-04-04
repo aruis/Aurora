@@ -1,5 +1,6 @@
 package net.ximatai.aurora.project;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -24,8 +25,13 @@ public class ProjectService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<ProjectSummary> list(String name, String customer, String contractNo) {
-		return projectRepository.search(blankToNull(name), blankToNull(customer), blankToNull(contractNo));
+	public List<ProjectSummary> list(String name, String customer, String contractNo, LocalDate signingDateStart, LocalDate signingDateEnd) {
+		return projectRepository.search(
+			blankToNull(name),
+			blankToNull(customer),
+			blankToNull(contractNo),
+			signingDateStart,
+			signingDateEnd);
 	}
 
 	@Transactional(readOnly = true)
