@@ -1,20 +1,20 @@
 import { BarChartOutlined, DollarOutlined, DownloadOutlined, WalletOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Alert, Button, DatePicker, Empty, Segmented, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Empty, Segmented, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { LocalizedRangePicker } from '@/components/localized-date-picker'
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
 import { downloadCsv } from '@/lib/export'
 import { formatCompactCurrency, formatCurrency } from '@/lib/format'
+import { buildTablePagination } from '@/lib/table'
 import { getFinanceStats, type FinanceStatsProjectRow } from '@/modules/finance/api'
-
-const { RangePicker } = DatePicker
 
 type PresetKey = 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -94,7 +94,7 @@ export function FinanceStatsPage() {
               }
             }}
           />
-          <RangePicker
+          <LocalizedRangePicker
             value={preset === 'custom' ? customRange : activeRange}
             onChange={(value) => {
               setPreset('custom')
@@ -105,8 +105,6 @@ export function FinanceStatsPage() {
               setCustomRange([value[0], value[1]])
             }}
             allowClear
-            format="YYYY-MM-DD"
-            inputReadOnly
           />
           {activeRange ? (
             <Tag color="blue">
@@ -188,12 +186,7 @@ export function FinanceStatsPage() {
               dataSource={projects}
               columns={columns}
               scroll={{ x: 960 }}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                pageSizeOptions: [10, 20, 50, 100],
-                showTotal: (total) => `共 ${total} 条`,
-              }}
+              pagination={buildTablePagination()}
               summary={(rows) => (
                 rows.length > 0
                   ? (

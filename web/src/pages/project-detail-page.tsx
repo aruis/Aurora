@@ -8,7 +8,6 @@ import {
   Descriptions,
   Empty,
   Form,
-  InputNumber,
   Modal,
   Popconfirm,
   Row,
@@ -23,6 +22,7 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import { CurrencyInputNumber } from '@/components/currency-input-number'
 import { LocalizedDatePicker } from '@/components/localized-date-picker'
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
@@ -393,7 +393,7 @@ export function ProjectDetailPage() {
           }}
         >
           <Form.Item label="开票金额" name="amount" rules={[{ required: true, message: '请输入开票金额' }]}>
-            <InputNumber style={{ width: '100%' }} min={0.01} precision={2} addonBefore="¥" />
+            <CurrencyInputNumber />
           </Form.Item>
           <Form.Item label="开票日期" name="invoiceDate" rules={[{ required: true, message: '请选择开票日期' }]}>
             <LocalizedDatePicker
@@ -433,7 +433,7 @@ export function ProjectDetailPage() {
           }}
         >
           <Form.Item label="回款金额" name="amount" rules={[{ required: true, message: '请输入回款金额' }]}>
-            <InputNumber style={{ width: '100%' }} min={0.01} precision={2} addonBefore="¥" />
+            <CurrencyInputNumber />
           </Form.Item>
           <Form.Item label="回款日期" name="paymentDate" rules={[{ required: true, message: '请选择回款日期' }]}>
             <LocalizedDatePicker

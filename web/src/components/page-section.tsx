@@ -3,7 +3,7 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { Card, Typography } from 'antd'
 
 type PageSectionProps = PropsWithChildren<{
-  title?: string
+  title?: ReactNode
   subtitle?: string
   extra?: ReactNode
   muted?: boolean

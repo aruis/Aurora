@@ -1,20 +1,22 @@
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Button, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Button, Col, Form, Input, Modal, Popconfirm, Row, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import { LocalizedDatePicker } from '@/components/localized-date-picker'
+import { CurrencyInputNumber } from '@/components/currency-input-number'
+import { LocalizedDatePicker, LocalizedRangePicker } from '@/components/localized-date-picker'
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
 import { downloadCsv } from '@/lib/export'
 import { applyFormErrors } from '@/lib/forms'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { isApiError } from '@/lib/http'
+import { buildTablePagination } from '@/lib/table'
 import {
   createProject,
   deleteProject,
@@ -24,8 +26,6 @@ import {
   type ProjectFormValues,
   type ProjectSummary,
 } from '@/modules/projects/api'
-
-const { RangePicker } = DatePicker
 
 type SearchFormValues = Omit<ProjectFilters, 'signingDateStart' | 'signingDateEnd'> & {
   signingDateRange?: [Dayjs, Dayjs]
@@ -222,7 +222,7 @@ export function ProjectListPage() {
             </Col>
             <Col xs={24} md={12} xl={8}>
               <Form.Item label="签约日期" name="signingDateRange">
-                <RangePicker style={{ width: '100%' }} allowClear format="YYYY-MM-DD" inputReadOnly />
+                <LocalizedRangePicker style={{ width: '100%' }} allowClear />
               </Form.Item>
             </Col>
           </Row>
@@ -284,12 +284,7 @@ export function ProjectListPage() {
               onDoubleClick: () => navigate(`/projects/${record.id}`),
             })}
             scroll={{ x: 980 }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              pageSizeOptions: [10, 20, 50, 100],
-              showTotal: (total) => `共 ${total} 条`,
-            }}
+            pagination={buildTablePagination()}
           />
         </div>
       </PageSection>
@@ -349,7 +344,7 @@ export function ProjectListPage() {
             </Col>
             <Col xs={24}>
               <Form.Item label="合同金额" name="contractAmount" rules={[{ required: true, message: '请输入合同金额' }]}>
-                <InputNumber style={{ width: '100%' }} min={0.01} precision={2} addonBefore="¥" />
+                <CurrencyInputNumber />
               </Form.Item>
             </Col>
           </Row>
