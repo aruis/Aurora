@@ -1,6 +1,5 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
 
 set "ROOT_DIR=%~dp0"
 cd /d "%ROOT_DIR%"
@@ -18,8 +17,8 @@ if exist "%PID_FILE%" (
   if not "!TARGET_PID!"=="" (
     tasklist /FI "PID eq !TARGET_PID!" | findstr /R /C:" !TARGET_PID! " >nul 2>&1
     if not errorlevel 1 (
-      echo 检测到 Aurora 正在运行。
-      echo 为了避免备份中的数据库不完整，请先执行 “停止 Aurora.bat”。
+      echo Aurora is running.
+      echo Stop Aurora before backup to avoid an incomplete database copy.
       pause
       exit /b 1
     )
@@ -27,8 +26,8 @@ if exist "%PID_FILE%" (
 )
 
 if not exist "%DB_FILE%" (
-  echo 未找到数据库文件：%DB_FILE%
-  echo 如果是首次使用，先启动一次系统生成数据库后再备份。
+  echo Database file not found: %DB_FILE%
+  echo Start Aurora once to create the database, then run backup again.
   pause
   exit /b 1
 )
@@ -38,11 +37,11 @@ set "TARGET_FILE=%BACKUP_DIR%\aurora-%STAMP%.db"
 
 copy /Y "%DB_FILE%" "%TARGET_FILE%" >nul
 if errorlevel 1 (
-  echo 备份失败，请检查磁盘空间或目录权限。
+  echo Backup failed. Check disk space and folder permissions.
   pause
   exit /b 1
 )
 
-echo 备份完成：
+echo Backup completed:
 echo %TARGET_FILE%
 pause

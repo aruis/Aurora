@@ -1,6 +1,5 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
 
 set "ROOT_DIR=%~dp0"
 cd /d "%ROOT_DIR%"
@@ -15,6 +14,8 @@ set "PID_FILE=%RUN_DIR%\aurora.pid"
 set "JAVA_EXE=%APP_DIR%\runtime\bin\java.exe"
 set "JAR_FILE=%APP_DIR%\aurora.jar"
 set "PORT=8080"
+set "ACCESS_URL=http://localhost:%PORT%"
+set "STARTED_PID="
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
@@ -26,8 +27,8 @@ if exist "%PID_FILE%" (
   if not "!EXISTING_PID!"=="" (
     tasklist /FI "PID eq !EXISTING_PID!" | findstr /R /C:" !EXISTING_PID! " >nul 2>&1
     if not errorlevel 1 (
-      echo Aurora 已在运行中，PID: !EXISTING_PID!
-      echo 访问地址: http://localhost:%PORT%
+      echo Aurora is already running. PID: !EXISTING_PID!
+      echo Access URL: %ACCESS_URL%
       pause
       exit /b 0
     )
@@ -36,14 +37,14 @@ if exist "%PID_FILE%" (
 
 netstat -ano | findstr /R /C:":%PORT% .*LISTENING" >nul 2>&1
 if not errorlevel 1 (
-  echo 端口 %PORT% 已被其他程序占用，请先释放该端口后重试。
+  echo Port %PORT% is already in use. Please free the port and try again.
   pause
   exit /b 1
 )
 
 if not exist "%JAR_FILE%" (
-  echo 未找到 %JAR_FILE%
-  echo 请先执行 Windows 绿色包打包流程，再重试。
+  echo Missing file: %JAR_FILE%
+  echo Please rebuild the Windows portable package and try again.
   pause
   exit /b 1
 )
@@ -52,14 +53,14 @@ if not exist "%JAVA_EXE%" (
   set "JAVA_EXE=java"
   where java >nul 2>&1
   if errorlevel 1 (
-    echo 未找到内置 Java 运行时，也没有检测到系统 Java。
-    echo 建议将 Windows JRE 解压到 app\runtime\ 目录后再启动。
+    echo No bundled Java runtime found, and no system Java is available.
+    echo Put a Windows Java runtime under app\runtime\ and try again.
     pause
     exit /b 1
   )
 )
 
-echo 正在启动 Aurora，请稍候...
+echo Starting Aurora, please wait...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$workDir = (Resolve-Path '.').Path; " ^
   "$javaExe = '%JAVA_EXE%'; " ^
@@ -71,13 +72,49 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Set-Content -Path '%PID_FILE%' -Value $process.Id -Encoding ascii"
 
 if errorlevel 1 (
-  echo 启动失败，请检查 logs\aurora-console.log 和 logs\aurora-error.log。
+  echo Start command failed. Check logs\aurora-console.log and logs\aurora-error.log.
   pause
   exit /b 1
 )
 
-echo Aurora 已启动。
-echo 访问地址: http://localhost:%PORT%
-echo 日志目录: %LOG_DIR%
-echo 如需停止，请双击 “停止 Aurora.bat”。
+if exist "%PID_FILE%" (
+  set /p STARTED_PID=<"%PID_FILE%"
+)
+
+if "%STARTED_PID%"=="" (
+  echo Aurora did not return a PID. Check logs\aurora-console.log and logs\aurora-error.log.
+  pause
+  exit /b 1
+)
+
+set "WAIT_SECONDS=20"
+for /L %%i in (1,1,%WAIT_SECONDS%) do (
+  tasklist /FI "PID eq %STARTED_PID%" | findstr /R /C:" %STARTED_PID% " >nul 2>&1
+  if errorlevel 1 (
+    echo Aurora exited early. Check logs\aurora-console.log and logs\aurora-error.log.
+    if exist "%PID_FILE%" del "%PID_FILE%" >nul 2>&1
+    pause
+    exit /b 1
+  )
+
+  netstat -ano | findstr /R /C:":%PORT% .*LISTENING" >nul 2>&1
+  if not errorlevel 1 goto started
+
+  powershell -NoProfile -Command "Start-Sleep -Seconds 1" >nul
+)
+
+echo Aurora process started, but port %PORT% is not ready yet.
+echo It may still be starting. If the page does not open soon, check logs\aurora-console.log and logs\aurora-error.log.
+echo PID: %STARTED_PID%
+echo Access URL: %ACCESS_URL%
+echo Log directory: %LOG_DIR%
+pause
+exit /b 0
+
+:started
+echo Aurora is running.
+echo PID: %STARTED_PID%
+echo Access URL: %ACCESS_URL%
+echo Log directory: %LOG_DIR%
+echo Use the stop script in this folder to stop Aurora.
 pause
