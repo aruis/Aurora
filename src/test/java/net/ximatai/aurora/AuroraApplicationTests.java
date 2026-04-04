@@ -1,12 +1,15 @@
 package net.ximatai.aurora;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -302,6 +305,226 @@ class AuroraApplicationTests {
 			.andExpect(jsonPath("$.message").value("开始日期不能晚于结束日期"));
 	}
 
+	@Test
+	void unauthenticatedRequestsReceiveUnauthorizedResponses() throws Exception {
+		mockMvc.perform(get("/api/projects"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.message").value("未登录或登录已失效"));
+
+		mockMvc.perform(post("/api/auth/change-password")
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"oldPassword":"admin123","newPassword":"newpass123"}
+					"""))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.message").value("未登录或登录已失效"));
+
+		mockMvc.perform(post("/api/auth/logout"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.message").value("未登录或登录已失效"));
+	}
+
+	@Test
+	void invalidPayloadsReturnValidationErrors() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+
+		mockMvc.perform(post("/api/projects").session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "name":" ",
+					  "customer":"",
+					  "contractNo":" ",
+					  "signingDate":null,
+					  "contractAmount":0
+					}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("请求参数校验失败"))
+			.andExpect(jsonPath("$.errors.name").value("项目名称不能为空"))
+			.andExpect(jsonPath("$.errors.customer").value("客户不能为空"))
+			.andExpect(jsonPath("$.errors.contractNo").value("合同号不能为空"))
+			.andExpect(jsonPath("$.errors.signingDate").value("签约时间不能为空"))
+			.andExpect(jsonPath("$.errors.contractAmount").value("合同金额必须大于0"));
+
+		mockMvc.perform(post("/api/users").session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "username":"new-user",
+					  "password":"",
+					  "displayName":" ",
+					  "enabled":true,
+					  "roles":[]
+					}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("请求参数校验失败"))
+			.andExpect(jsonPath("$.errors.password").value("密码不能为空"))
+			.andExpect(jsonPath("$.errors.displayName").value("展示名称不能为空"))
+			.andExpect(jsonPath("$.errors.roles").value("至少选择一个角色"));
+
+		Long projectId = createProject(adminSession);
+
+		mockMvc.perform(post("/api/projects/{projectId}/invoices", projectId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"amount":0,"invoiceDate":null}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("请求参数校验失败"))
+			.andExpect(jsonPath("$.errors.amount").value("开票金额必须大于0"))
+			.andExpect(jsonPath("$.errors.invoiceDate").value("开票时间不能为空"));
+	}
+
+	@Test
+	void userManagementGuardrailsAndSensitiveFieldsAreCovered() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+
+		MvcResult createResult = mockMvc.perform(post("/api/users").session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "username":"auditor",
+					  "password":"123456",
+					  "displayName":"审计员",
+					  "enabled":true,
+					  "roles":["FINANCE"]
+					}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.username").value("auditor"))
+			.andExpect(content().string(not(containsString("passwordHash"))))
+			.andReturn();
+
+		mockMvc.perform(post("/api/users").session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "username":"auditor",
+					  "password":"654321",
+					  "displayName":"重复用户",
+					  "enabled":true,
+					  "roles":["FINANCE"]
+					}
+					"""))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.message").value("用户名已存在"));
+
+		Long adminId = userRepository.findByUsername("admin").orElseThrow().getId();
+		mockMvc.perform(post("/api/users/{id}/disable", adminId).session(adminSession))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("admin 用户不允许被禁用"));
+
+		mockMvc.perform(get("/api/users").session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(content().string(not(containsString("passwordHash"))));
+
+		mockMvc.perform(get("/api/auth/me").session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(content().string(not(containsString("passwordHash"))));
+
+		Long auditorId = readNestedUserId(createResult);
+		mockMvc.perform(post("/api/users/{id}/reset-password", auditorId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"newPassword":"reset789"}
+					"""))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/auth/login")
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"username":"auditor","password":"123456"}
+					"""))
+			.andExpect(status().isUnauthorized());
+
+		mockMvc.perform(post("/api/auth/login")
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"username":"auditor","password":"reset789"}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(content().string(not(containsString("passwordHash"))));
+	}
+
+	@Test
+	void invoiceAndPaymentRejectCrossProjectAccessAndMissingResources() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		Long projectA = createProject(adminSession);
+		Long projectB = createProject(adminSession, """
+			{
+			  "name":"Beta 项目",
+			  "customer":"测试客户B",
+			  "contractNo":"HT-2026-009",
+			  "signingDate":"2026-04-09",
+			  "contractAmount":2000
+			}
+			""");
+		Long invoiceId = createInvoice(adminSession, projectA, """
+			{"amount":500,"invoiceDate":"2026-04-05"}
+			""");
+		Long paymentId = createPayment(adminSession, projectA, """
+			{"amount":300,"paymentDate":"2026-04-06"}
+			""");
+
+		mockMvc.perform(put("/api/projects/{projectId}/invoices/{invoiceId}", projectB, invoiceId)
+				.session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"amount":800,"invoiceDate":"2026-04-10"}
+					"""))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.message").value("开票记录不存在"));
+
+		mockMvc.perform(delete("/api/projects/{projectId}/payments/{paymentId}", projectB, paymentId)
+				.session(adminSession))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.message").value("回款记录不存在"));
+
+		mockMvc.perform(get("/api/projects/{projectId}/payments", 999999L).session(adminSession))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.message").value("项目不存在"));
+	}
+
+	@Test
+	void financeStatsAndProjectListHandleEdgeQueries() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		Long projectId = createProject(adminSession, """
+			{
+			  "name":"  银河项目  ",
+			  "customer":"星河客户",
+			  "contractNo":"HT-2026-100",
+			  "signingDate":"2026-04-11",
+			  "contractAmount":5200
+			}
+			""");
+		createPayment(adminSession, projectId, """
+			{"amount":1200,"paymentDate":"2026-04-12"}
+			""");
+
+		mockMvc.perform(get("/api/projects")
+				.session(adminSession)
+				.param("name", "")
+				.param("customer", "星河")
+				.param("contractNo", "")
+				.param("signingDateStart", "2026-04-01")
+				.param("signingDateEnd", "2026-04-30"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.length()").value(1))
+			.andExpect(jsonPath("$[0].id").value(projectId));
+
+		mockMvc.perform(get("/api/finance-stats")
+				.session(adminSession)
+				.param("startDate", "2026-05-01")
+				.param("endDate", "2026-05-31"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.summary.invoiceTotal").value(0))
+			.andExpect(jsonPath("$.summary.paymentTotal").value(0))
+			.andExpect(jsonPath("$.summary.projectCount").value(0))
+			.andExpect(jsonPath("$.projects.length()").value(0));
+	}
+
 	private MockHttpSession login(String username, String password) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/auth/login")
 				.contentType(APPLICATION_JSON)
@@ -363,6 +586,11 @@ class AuroraApplicationTests {
 	}
 
 	private Long readId(MvcResult result) throws Exception {
+		JsonNode jsonNode = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+		return jsonNode.get("id").asLong();
+	}
+
+	private Long readNestedUserId(MvcResult result) throws Exception {
 		JsonNode jsonNode = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
 		return jsonNode.get("id").asLong();
 	}
