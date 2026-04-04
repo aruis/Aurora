@@ -1,0 +1,20 @@
+Aurora Linux 绿色包使用说明
+
+1. 将整个 Aurora 目录解压到本地，例如 /opt/aurora
+2. 建议将 Linux Java 21 运行时解压到 app/runtime/
+3. 在终端进入 Aurora 目录
+4. 执行 ./start-aurora.sh
+5. 浏览器打开 http://localhost:8080
+
+常用命令
+- 启动系统：./start-aurora.sh
+- 停止系统：./stop-aurora.sh
+- 查看状态：./status-aurora.sh
+- 备份数据库：./backup-data.sh
+
+重要目录
+- 程序文件：app/
+- 配置文件：config/application.yaml
+- 数据库文件：data/aurora.db
+- 备份目录：data/backup/
+- 日志目录：logs/

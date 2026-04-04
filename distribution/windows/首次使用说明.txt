@@ -1,0 +1,31 @@
+Aurora Windows 绿色包使用说明
+
+1. 将整个 Aurora 目录解压到本地磁盘，例如 D:\Aurora
+2. 建议将 Windows JRE 解压到 app\runtime\ 目录
+3. 双击 “启动 Aurora.bat”
+4. 浏览器打开 http://localhost:8080
+
+常用操作
+- 启动系统：启动 Aurora.bat
+- 停止系统：停止 Aurora.bat
+- 查看运行状态：查看状态.bat
+- 备份数据库：备份数据.bat
+
+重要目录
+- 程序文件：app\
+- 配置文件：config\application.yaml
+- 数据库文件：data\aurora.db
+- 备份目录：data\backup\
+- 日志目录：logs\
+
+升级建议
+1. 先执行 “停止 Aurora.bat”
+2. 备份 data\aurora.db
+3. 用新版本覆盖 app\、config\ 和 bat 脚本
+4. 保留原来的 data\ 目录
+5. 再执行 “启动 Aurora.bat”
+
+注意
+- 不要手动删除 data\aurora.db
+- 如果启动失败，请先查看 logs\aurora-console.log、logs\aurora-error.log 和 logs\aurora.log
+- 如未内置 Java，脚本会尝试使用系统 Java

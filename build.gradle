@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'net.ximatai'
-version = '0.0.1-SNAPSHOT'
+version = findProperty('releaseVersion') ?: '1.26.1'
 
 java {
 	toolchain {
@@ -19,6 +19,9 @@ repositories {
 
 def webDir = layout.projectDirectory.dir("web")
 def webBuildDir = webDir.dir("dist")
+def windowsDistDir = layout.buildDirectory.dir("windows-dist/Aurora")
+def linuxDistDir = layout.buildDirectory.dir("linux-dist/Aurora")
+def macosDistDir = layout.buildDirectory.dir("macos-dist/Aurora")
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -71,4 +74,114 @@ tasks.register('packageApp') {
 	description = 'Builds the frontend, copies web assets into backend resources, and creates the Spring Boot jar.'
 	dependsOn tasks.named('processResources')
 	dependsOn tasks.named('bootJar')
+}
+
+tasks.register('prepareWindowsPortable', Copy) {
+	group = 'distribution'
+	description = 'Assembles a Windows portable package with scripts, config and the application jar.'
+	dependsOn tasks.named('bootJar')
+
+	into windowsDistDir
+
+	from(layout.projectDirectory.file('README.md')) {
+		into '.'
+	}
+
+	from(layout.projectDirectory.dir('distribution/windows')) {
+		into '.'
+	}
+
+	from(tasks.named('bootJar')) {
+		into 'app'
+		rename { 'aurora.jar' }
+	}
+
+	doFirst {
+		delete windowsDistDir
+	}
+}
+
+tasks.register('packageWindowsPortableZip', Zip) {
+	group = 'distribution'
+	description = 'Builds a zip archive for the Windows portable package.'
+	dependsOn tasks.named('prepareWindowsPortable')
+	archiveFileName = "aurora-windows-${project.version}.zip"
+	destinationDirectory = layout.buildDirectory.dir('distributions')
+	from(windowsDistDir) {
+		into 'Aurora'
+	}
+}
+
+tasks.register('prepareLinuxPortable', Copy) {
+	group = 'distribution'
+	description = 'Assembles a Linux portable package with scripts, config and the application jar.'
+	dependsOn tasks.named('bootJar')
+
+	into linuxDistDir
+
+	from(layout.projectDirectory.file('README.md')) {
+		into '.'
+	}
+
+	from(layout.projectDirectory.dir('distribution/linux')) {
+		into '.'
+	}
+
+	from(tasks.named('bootJar')) {
+		into 'app'
+		rename { 'aurora.jar' }
+	}
+
+	doFirst {
+		delete linuxDistDir
+	}
+}
+
+tasks.register('packageLinuxPortableTar', Tar) {
+	group = 'distribution'
+	description = 'Builds a tar.gz archive for the Linux portable package.'
+	dependsOn tasks.named('prepareLinuxPortable')
+	archiveFileName = "aurora-linux-${project.version}.tar.gz"
+	compression = Compression.GZIP
+	destinationDirectory = layout.buildDirectory.dir('distributions')
+	from(linuxDistDir) {
+		into 'Aurora'
+	}
+}
+
+tasks.register('prepareMacPortable', Copy) {
+	group = 'distribution'
+	description = 'Assembles a macOS portable package with scripts, config and the application jar.'
+	dependsOn tasks.named('bootJar')
+
+	into macosDistDir
+
+	from(layout.projectDirectory.file('README.md')) {
+		into '.'
+	}
+
+	from(layout.projectDirectory.dir('distribution/macos')) {
+		into '.'
+	}
+
+	from(tasks.named('bootJar')) {
+		into 'app'
+		rename { 'aurora.jar' }
+	}
+
+	doFirst {
+		delete macosDistDir
+	}
+}
+
+tasks.register('packageMacPortableTar', Tar) {
+	group = 'distribution'
+	description = 'Builds a tar.gz archive for the macOS portable package.'
+	dependsOn tasks.named('prepareMacPortable')
+	archiveFileName = "aurora-macos-${project.version}.tar.gz"
+	compression = Compression.GZIP
+	destinationDirectory = layout.buildDirectory.dir('distributions')
+	from(macosDistDir) {
+		into 'Aurora'
+	}
 }

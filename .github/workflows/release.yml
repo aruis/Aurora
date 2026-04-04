@@ -1,0 +1,152 @@
+name: Release Portable Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 1.26.1
+        required: true
+        default: "1.26.1"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            prepare_task: prepareWindowsPortable
+            dist_dir: build/windows-dist/Aurora
+            asset_name: aurora-windows
+            archive_ext: zip
+          - os: ubuntu-latest
+            platform: linux
+            prepare_task: prepareLinuxPortable
+            dist_dir: build/linux-dist/Aurora
+            asset_name: aurora-linux
+            archive_ext: tar.gz
+          - os: macos-latest
+            platform: macos
+            prepare_task: prepareMacPortable
+            dist_dir: build/macos-dist/Aurora
+            asset_name: aurora-macos
+            archive_ext: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "RELEASE_VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Prepare portable directory on Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: .\gradlew.bat "-PreleaseVersion=$env:RELEASE_VERSION" ${{ matrix.prepare_task }}
+
+      - name: Prepare portable directory on Unix
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: ./gradlew "-PreleaseVersion=$RELEASE_VERSION" ${{ matrix.prepare_task }}
+
+      - name: Embed Windows runtime
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "${{ matrix.dist_dir }}\app\runtime" | Out-Null
+          Copy-Item -Path "$env:JAVA_HOME\*" -Destination "${{ matrix.dist_dir }}\app\runtime" -Recurse -Force
+
+      - name: Embed Unix runtime
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          mkdir -p "${{ matrix.dist_dir }}/app/runtime"
+          cp -R "$JAVA_HOME"/. "${{ matrix.dist_dir }}/app/runtime/"
+
+      - name: Create Windows archive
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/distributions | Out-Null
+          if (Test-Path "build/distributions/${{ matrix.asset_name }}-$env:RELEASE_VERSION.${{ matrix.archive_ext }}") {
+            Remove-Item "build/distributions/${{ matrix.asset_name }}-$env:RELEASE_VERSION.${{ matrix.archive_ext }}" -Force
+          }
+          Push-Location "build/windows-dist"
+          Compress-Archive -Path "Aurora" -DestinationPath "../distributions/${{ matrix.asset_name }}-$env:RELEASE_VERSION.${{ matrix.archive_ext }}"
+          Pop-Location
+
+      - name: Create Unix archive
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          mkdir -p build/distributions
+          tar -C "build/${{ matrix.platform }}-dist" -czf "build/distributions/${{ matrix.asset_name }}-$RELEASE_VERSION.${{ matrix.archive_ext }}" Aurora
+
+      - name: Upload packaged asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}-${{ env.RELEASE_VERSION }}
+          path: build/distributions/${{ matrix.asset_name }}-${{ env.RELEASE_VERSION }}.${{ matrix.archive_ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "RELEASE_VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: Aurora v${{ env.RELEASE_VERSION }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            release-assets/**/*.zip
+            release-assets/**/*.tar.gz
+          fail_on_unmatched_files: true
