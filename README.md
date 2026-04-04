@@ -1,4 +1,6 @@
 # Aurora
+[![CI](https://github.com/aruis/Aurora/actions/workflows/ci.yml/badge.svg)](https://github.com/aruis/Aurora/actions/workflows/ci.yml)
+
 Aurora 是一个面向内部业务协作的单体管理系统，核心场景围绕“项目台账 + 开票 + 回款 + 用户与权限管理”展开。
 
 ## 核心业务场景
