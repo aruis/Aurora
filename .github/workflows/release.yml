@@ -139,6 +139,14 @@ jobs:
         with:
           path: release-assets
 
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          find release-assets -type f \( -name "*.zip" -o -name "*.tar.gz" \) -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            | sed 's#  release-assets/.*/#  #' > SHA256SUMS.txt
+
       - name: Generate release notes body
         shell: bash
         run: |
@@ -149,6 +157,7 @@ jobs:
           - Windows 绿色包：\`aurora-windows-${RELEASE_VERSION}.zip\`
           - Linux 绿色包：\`aurora-linux-${RELEASE_VERSION}.tar.gz\`
           - macOS 绿色包：\`aurora-macos-${RELEASE_VERSION}.tar.gz\`
+          - 校验文件：\`SHA256SUMS.txt\`
 
           ## 使用说明
           - 以上三个附件均已内置对应平台的 Java 21 运行时，下载后可直接解压使用。
@@ -177,4 +186,5 @@ jobs:
           files: |
             release-assets/**/*.zip
             release-assets/**/*.tar.gz
+            SHA256SUMS.txt
           fail_on_unmatched_files: true
