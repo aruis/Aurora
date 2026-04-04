@@ -65,3 +65,10 @@ tasks.named('processResources') {
 		into 'static'
 	}
 }
+
+tasks.register('packageApp') {
+	group = 'build'
+	description = 'Builds the frontend, copies web assets into backend resources, and creates the Spring Boot jar.'
+	dependsOn tasks.named('processResources')
+	dependsOn tasks.named('bootJar')
+}

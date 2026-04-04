@@ -43,6 +43,7 @@ public class SecurityConfig {
 		AccessDeniedHandler accessDeniedHandler, SecurityContextRepository securityContextRepository,
 		CorsConfigurationSource corsConfigurationSource) throws Exception {
 		http
+			.securityMatcher("/api/**")
 			.csrf(csrf -> csrf.disable())
 			.cors(cors -> cors.configurationSource(corsConfigurationSource))
 			.formLogin(form -> form.disable())

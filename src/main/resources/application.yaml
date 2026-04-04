@@ -2,6 +2,7 @@ spring:
   application:
     name: aurora
   datasource:
+    # Windows example: jdbc:sqlite:C:/aurora/data/aurora.db
     url: jdbc:sqlite:./aurora.db
     driver-class-name: org.sqlite.JDBC
   jpa:
