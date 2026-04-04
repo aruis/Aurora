@@ -51,8 +51,6 @@ export function DashboardPage() {
   })
 
   const projects = projectsQuery.data ?? []
-  const yearNewProjects = yearNewProjectsQuery.data ?? []
-  const recentFinanceProjects = recentFinanceStatsQuery.data?.projects ?? []
   const totalContractAmount = projects.reduce((sum, item) => sum + Number(item.contractAmount), 0)
   const totalInvoiceAmount = projects.reduce((sum, item) => sum + Number(item.invoicedAmount), 0)
   const totalPaymentAmount = projects.reduce((sum, item) => sum + Number(item.receivedAmount), 0)
@@ -63,37 +61,42 @@ export function DashboardPage() {
     count: number
     subtitle: string
     emptyText: string
-  }>>(() => ({
-    'year-new': {
-      items: [...yearNewProjects]
+  }>>(() => {
+    const yearNewProjects = yearNewProjectsQuery.data ?? []
+    const recentFinanceProjects = recentFinanceStatsQuery.data?.projects ?? []
+
+    return {
+      'year-new': {
+        items: [...yearNewProjects]
         .sort((left, right) => dayjs(right.signingDate).valueOf() - dayjs(left.signingDate).valueOf())
         .slice(0, 5)
         .map(mapYearNewProject),
-      count: yearNewProjects.length,
-      subtitle: '按签约日期倒序展示本年新增项目，优先关注新签项目推进情况。',
-      emptyText: '本年暂无新增项目。',
-    },
-    'recent-invoice': {
-      items: [...recentFinanceProjects]
+        count: yearNewProjects.length,
+        subtitle: '按签约日期倒序展示本年新增项目，优先关注新签项目推进情况。',
+        emptyText: '本年暂无新增项目。',
+      },
+      'recent-invoice': {
+        items: [...recentFinanceProjects]
         .filter((project) => Number(project.invoiceAmount) > 0)
         .sort((left, right) => Number(right.invoiceAmount) - Number(left.invoiceAmount))
         .slice(0, 5)
         .map((project) => mapRecentFinanceProject(project, 'invoice')),
-      count: recentFinanceProjects.filter((project) => Number(project.invoiceAmount) > 0).length,
-      subtitle: '聚焦近 30 天内有开票动作的项目，按区间开票金额倒序展示。',
-      emptyText: '近 30 天内暂无开票项目。',
-    },
-    'recent-payment': {
-      items: [...recentFinanceProjects]
+        count: recentFinanceProjects.filter((project) => Number(project.invoiceAmount) > 0).length,
+        subtitle: '聚焦近 30 天内有开票动作的项目，按区间开票金额倒序展示。',
+        emptyText: '近 30 天内暂无开票项目。',
+      },
+      'recent-payment': {
+        items: [...recentFinanceProjects]
         .filter((project) => Number(project.paymentAmount) > 0)
         .sort((left, right) => Number(right.paymentAmount) - Number(left.paymentAmount))
         .slice(0, 5)
         .map((project) => mapRecentFinanceProject(project, 'payment')),
-      count: recentFinanceProjects.filter((project) => Number(project.paymentAmount) > 0).length,
-      subtitle: '聚焦近 30 天内有回款动作的项目，按区间回款金额倒序展示。',
-      emptyText: '近 30 天内暂无回款项目。',
-    },
-  }), [recentFinanceProjects, yearNewProjects])
+        count: recentFinanceProjects.filter((project) => Number(project.paymentAmount) > 0).length,
+        subtitle: '聚焦近 30 天内有回款动作的项目，按区间回款金额倒序展示。',
+        emptyText: '近 30 天内暂无回款项目。',
+      },
+    }
+  }, [recentFinanceStatsQuery.data?.projects, yearNewProjectsQuery.data])
   const activeHighlights = highlightData[highlightSource]
   const highlightLoading = highlightSource === 'year-new'
     ? yearNewProjectsQuery.isLoading
