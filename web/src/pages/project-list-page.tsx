@@ -1,16 +1,17 @@
-import { DeleteOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, Typography, message } from 'antd'
+import { Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { LocalizedDatePicker } from '@/components/localized-date-picker'
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
+import { downloadCsv } from '@/lib/export'
 import { applyFormErrors } from '@/lib/forms'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { isApiError } from '@/lib/http'
@@ -34,6 +35,7 @@ type ProjectEditorValues = {
 }
 
 export function ProjectListPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchForm] = Form.useForm<SearchFormValues>()
   const [editorForm] = Form.useForm<ProjectEditorValues>()
@@ -87,29 +89,35 @@ export function ProjectListPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 190,
+      width: 156,
       render: (_, record) => (
-        <Space wrap size={4}>
-          <Button type="link" icon={<EyeOutlined />} style={{ paddingInline: 8 }}>
-            <Link to={`/projects/${record.id}`}>详情</Link>
-          </Button>
-          <Button
-            type="link"
-            style={{ paddingInline: 8 }}
-            onClick={() => {
-              setEditingProject(record)
-              setEditorOpen(true)
-              editorForm.setFieldsValue({
-                name: record.name,
-                customer: record.customer,
-                contractNo: record.contractNo,
-                signingDate: dayjs(record.signingDate),
-                contractAmount: Number(record.contractAmount),
-              })
-            }}
-          >
-            编辑
-          </Button>
+        <Space size={6}>
+          <Tooltip title="查看详情">
+            <Button
+              type="text"
+              aria-label={`查看 ${record.name} 详情`}
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/projects/${record.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title="编辑项目">
+            <Button
+              type="text"
+              aria-label={`编辑 ${record.name}`}
+              icon={<EditOutlined />}
+              onClick={() => {
+                setEditingProject(record)
+                setEditorOpen(true)
+                editorForm.setFieldsValue({
+                  name: record.name,
+                  customer: record.customer,
+                  contractNo: record.contractNo,
+                  signingDate: dayjs(record.signingDate),
+                  contractAmount: Number(record.contractAmount),
+                })
+              }}
+            />
+          </Tooltip>
           <Popconfirm
             title="确认删除该项目？"
             description="如该项目已有关联开票或回款，后端会拒绝删除。"
@@ -124,14 +132,29 @@ export function ProjectListPage() {
               }
             }}
           >
-            <Button type="link" danger icon={<DeleteOutlined />} style={{ paddingInline: 8 }}>
-              删除
-            </Button>
+            <Tooltip title="删除项目">
+              <Button
+                type="text"
+                danger
+                aria-label={`删除 ${record.name}`}
+                icon={<DeleteOutlined />}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
     },
   ]
+
+  const exportRows = projects.map((project) => ({
+    项目名称: project.name,
+    客户: project.customer,
+    合同号: project.contractNo,
+    签约日期: formatDate(project.signingDate),
+    合同金额: formatCurrency(project.contractAmount),
+    累计开票: formatCurrency(project.invoicedAmount),
+    累计回款: formatCurrency(project.receivedAmount),
+  }))
 
   return (
     <div className="page-stack">
@@ -202,9 +225,32 @@ export function ProjectListPage() {
         title="项目列表"
         subtitle="支持直接进入详情、编辑或删除，优先保留高频操作。"
         extra={(
-          <Typography.Text type="secondary">
-            当前显示 {projects.length} 条记录
-          </Typography.Text>
+          <div className="table-section-extra">
+            <Typography.Text type="secondary">
+              当前显示 {projects.length} 条记录
+            </Typography.Text>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => {
+                downloadCsv({
+                  filename: `项目管理-${new Date().toISOString().slice(0, 10)}.csv`,
+                  columns: [
+                    { title: '项目名称', render: (row) => row.项目名称 },
+                    { title: '客户', render: (row) => row.客户 },
+                    { title: '合同号', render: (row) => row.合同号 },
+                    { title: '签约日期', render: (row) => row.签约日期 },
+                    { title: '合同金额', render: (row) => row.合同金额 },
+                    { title: '累计开票', render: (row) => row.累计开票 },
+                    { title: '累计回款', render: (row) => row.累计回款 },
+                  ],
+                  rows: exportRows,
+                })
+              }}
+              disabled={exportRows.length === 0}
+            >
+              导出 CSV
+            </Button>
+          </div>
         )}
       >
         <div className="table-frame">
@@ -213,10 +259,14 @@ export function ProjectListPage() {
             loading={projectsQuery.isLoading}
             dataSource={projects}
             columns={columns}
+            onRow={(record) => ({
+              onDoubleClick: () => navigate(`/projects/${record.id}`),
+            })}
             scroll={{ x: 980 }}
             pagination={{
               pageSize: 10,
-              showSizeChanger: false,
+              showSizeChanger: true,
+              pageSizeOptions: [10, 20, 50, 100],
               showTotal: (total) => `共 ${total} 条`,
             }}
           />

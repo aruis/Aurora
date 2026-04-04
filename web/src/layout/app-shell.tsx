@@ -1,4 +1,5 @@
 import {
+  BarChartOutlined,
   KeyOutlined,
   DashboardOutlined,
   FolderOpenOutlined,
@@ -22,6 +23,7 @@ const { Content, Header, Sider } = Layout
 
 const breadcrumbNameMap: Record<string, string> = {
   dashboard: '仪表盘',
+  'finance-stats': '数据统计',
   projects: '项目管理',
   users: '用户管理',
 }
@@ -34,6 +36,7 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const menuItems = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: <Link to="/dashboard">仪表盘</Link> },
+    { key: '/finance-stats', icon: <BarChartOutlined />, label: <Link to="/finance-stats">数据统计</Link> },
     { key: '/projects', icon: <FolderOpenOutlined />, label: <Link to="/projects">项目管理</Link> },
     ...(user?.roles.includes('ADMIN')
       ? [{ key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> }]
@@ -69,12 +72,18 @@ export function AppShell() {
       return [{ title: '仪表盘' }]
     }
 
-    return pathSnippets.map((segment, index) => ({
-      title:
-        index === pathSnippets.length - 1 && /^\d+$/.test(segment)
+    return pathSnippets.map((segment, index) => {
+      const isLast = index === pathSnippets.length - 1
+      const href = `/${pathSnippets.slice(0, index + 1).join('/')}`
+      const label
+        = isLast && /^\d+$/.test(segment)
           ? `项目 #${segment}`
-          : breadcrumbNameMap[segment] ?? segment,
-    }))
+          : breadcrumbNameMap[segment] ?? segment
+
+      return {
+        title: !isLast && !/^\d+$/.test(segment) ? <Link to={href}>{label}</Link> : label,
+      }
+    })
   }, [pathSnippets])
 
   return (
@@ -97,7 +106,6 @@ export function AppShell() {
           <Typography.Title level={4} className="app-shell__brand-title">
             业务管理台
           </Typography.Title>
-          {!collapsed ? <span className="app-shell__brand-copy">项目、合同、开票与回款统一协同</span> : null}
         </div>
         <Menu
           className="app-shell__menu"
@@ -164,6 +172,7 @@ export function AppShell() {
                     style={{
                       backgroundColor: '#1d3d70',
                       flex: '0 0 auto',
+                      fontSize: 14,
                     }}
                   >
                     {user?.displayName?.slice(0, 1) ?? 'A'}
@@ -195,7 +204,7 @@ export function AppShell() {
                         display: 'block',
                         maxWidth: '100%',
                         marginTop: 2,
-                        fontSize: 12,
+                        fontSize: 11,
                         lineHeight: 1.2,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',

@@ -1,13 +1,13 @@
 import { ArrowRightOutlined, DollarOutlined, FundOutlined, WalletOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
-import { Button, Col, Empty, Row, Space, Tag, Typography } from 'antd'
+import { Button, Col, Empty, Row, Tag, Tooltip, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
-import { formatCurrency } from '@/lib/format'
+import { formatCompactCurrency, formatCurrency } from '@/lib/format'
 import { useSessionStore } from '@/modules/auth/session-store'
 import { getProjects } from '@/modules/projects/api'
 
@@ -57,9 +57,9 @@ export function DashboardPage() {
           <div className="hero-panel__aside">
             <div className="metric-grid">
               <MetricCard title="项目总数" value={String(projects.length)} icon={<FundOutlined />} hint="当前纳入台账的项目数量" />
-              <MetricCard title="合同总额" value={formatCurrency(totalContractAmount)} icon={<DollarOutlined />} hint="所有项目合同累计金额" />
-              <MetricCard title="累计开票" value={formatCurrency(totalInvoiceAmount)} icon={<WalletOutlined />} hint={`开票进度 ${(invoiceRate * 100).toFixed(1)}%`} />
-              <MetricCard title="累计回款" value={formatCurrency(totalPaymentAmount)} icon={<DollarOutlined />} hint={`回款转化 ${(paymentRate * 100).toFixed(1)}%`} />
+              <MetricCard title="合同总额" value={totalContractAmount} icon={<DollarOutlined />} hint="所有项目合同累计金额" money />
+              <MetricCard title="累计开票" value={totalInvoiceAmount} icon={<WalletOutlined />} hint={`开票进度 ${(invoiceRate * 100).toFixed(1)}%`} money />
+              <MetricCard title="累计回款" value={totalPaymentAmount} icon={<DollarOutlined />} hint={`回款转化 ${(paymentRate * 100).toFixed(1)}%`} money />
             </div>
           </div>
         </div>
@@ -99,20 +99,7 @@ export function DashboardPage() {
           </PageSection>
         </Col>
         <Col xs={24} xl={8}>
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
-            <PageSection title="工作提示" subtitle="先从关键比率判断风险，再进入具体操作。">
-              <div className="action-list">
-                <ActionCard
-                  title="合同执行"
-                  description={`已开票占合同额 ${(invoiceRate * 100).toFixed(1)}%，适合优先检查低开票项目。`}
-                />
-                <ActionCard
-                  title="资金回收"
-                  description={`已回款占开票额 ${(paymentRate * 100).toFixed(1)}%，便于快速识别待回款项目。`}
-                />
-              </div>
-            </PageSection>
-
+          <div className="dashboard-side-stack">
             <PageSection title="快捷入口" subtitle="把高频操作留在手边。">
               <div className="action-list">
                 <QuickLink title="进入项目台账" description="集中查看项目进度、合同金额和资金汇总。" to="/projects" />
@@ -121,28 +108,42 @@ export function DashboardPage() {
                 ) : null}
               </div>
             </PageSection>
-          </Space>
+          </div>
         </Col>
       </Row>
     </div>
   )
 }
 
-function MetricCard(props: { title: string; value: string; icon: ReactNode; hint: string }) {
-  const fontSize = props.value.length > 12 ? 22 : props.value.length > 8 ? 26 : 30
+function MetricCard(props: { title: string; value: string | number; icon: ReactNode; hint: string; money?: boolean }) {
+  const compactValue = props.money ? formatCompactCurrency(props.value) : null
+  const displayValue = compactValue?.amount ?? String(props.value)
+  const fontSize = displayValue.length > 12 ? 24 : displayValue.length > 8 ? 28 : 32
 
   return (
     <div className="metric-card">
       <span className="metric-card__label">{props.title}</span>
       <div className="metric-card__row">
         <span className="metric-card__icon">{props.icon}</span>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <Typography.Text className="metric-card__value" style={{ fontSize }}>
-            {props.value}
-          </Typography.Text>
-          <Typography.Text className="metric-card__hint">{props.hint}</Typography.Text>
+        <div className="metric-card__content">
+          {compactValue ? (
+            <Tooltip title={`完整金额 ${compactValue.full}`}>
+              <span className="metric-card__money" aria-label={compactValue.full}>
+                <span className="metric-card__currency">¥</span>
+                <Typography.Text className="metric-card__value" style={{ fontSize }}>
+                  {compactValue.amount}
+                </Typography.Text>
+                {compactValue.unit ? <span className="metric-card__unit">{compactValue.unit}</span> : null}
+              </span>
+            </Tooltip>
+          ) : (
+            <Typography.Text className="metric-card__value" style={{ fontSize }}>
+              {displayValue}
+            </Typography.Text>
+          )}
         </div>
       </div>
+      <Typography.Text className="metric-card__hint">{props.hint}</Typography.Text>
     </div>
   )
 }
@@ -154,19 +155,6 @@ function HighlightStat(props: { label: string; value: string }) {
       <Typography.Text strong className="highlight-row__stat-value">
         {props.value}
       </Typography.Text>
-    </div>
-  )
-}
-
-function ActionCard(props: { title: string; description: string }) {
-  return (
-    <div className="action-card">
-      <div>
-        <Typography.Text strong>{props.title}</Typography.Text>
-        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
-          {props.description}
-        </Typography.Text>
-      </div>
     </div>
   )
 }

@@ -169,6 +169,8 @@ export function UserManagementPage() {
           </Button>
           <Popconfirm
             title={`确认${record.enabled ? '停用' : '启用'}该用户？`}
+            okText="确定"
+            cancelText="取消"
             onConfirm={() => toggleUserStatus(record)}
           >
             <Button type="link" style={{ paddingInline: 8 }}>{record.enabled ? '停用' : '启用'}</Button>
@@ -301,6 +303,8 @@ export function UserManagementPage() {
           open={passwordOpen}
           onCancel={() => setPasswordOpen(false)}
           onOk={() => passwordForm.submit()}
+          okText="确定"
+          cancelText="取消"
           confirmLoading={resetPasswordMutation.isPending}
           destroyOnHidden
         >

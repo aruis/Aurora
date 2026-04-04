@@ -7,9 +7,17 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/query-client'
 import { appTheme } from '@/styles/theme'
 
+const appLocale = {
+  ...zhCN,
+  Pagination: {
+    ...zhCN.Pagination,
+    items_per_page: '条/页',
+  },
+}
+
 export function AppProviders({ children }: PropsWithChildren) {
   return (
-    <ConfigProvider locale={zhCN} theme={appTheme}>
+    <ConfigProvider locale={appLocale} theme={appTheme}>
       <AntApp>
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       </AntApp>

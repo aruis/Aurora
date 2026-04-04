@@ -237,6 +237,71 @@ class AuroraApplicationTests {
 			.andExpect(status().isNotFound());
 	}
 
+	@Test
+	void financeStatsAggregatesAcrossProjects() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		Long projectA = createProject(adminSession);
+		Long projectB = createProject(adminSession, """
+			{
+			  "name":"北极星项目",
+			  "customer":"示例客户B",
+			  "contractNo":"HT-2026-002",
+			  "signingDate":"2026-04-08",
+			  "contractAmount":6666.00
+			}
+			""");
+		Long projectC = createProject(adminSession, """
+			{
+			  "name":"晨曦项目",
+			  "customer":"示例客户C",
+			  "contractNo":"HT-2026-003",
+			  "signingDate":"2026-04-10",
+			  "contractAmount":9999.00
+			}
+			""");
+
+		createInvoice(adminSession, projectA, """
+			{"amount":1000,"invoiceDate":"2026-04-05"}
+			""");
+		createPayment(adminSession, projectA, """
+			{"amount":600,"paymentDate":"2026-04-06"}
+			""");
+		createPayment(adminSession, projectB, """
+			{"amount":300,"paymentDate":"2026-04-07"}
+			""");
+		createInvoice(adminSession, projectC, """
+			{"amount":800,"invoiceDate":"2026-03-30"}
+			""");
+
+		mockMvc.perform(get("/api/finance-stats")
+				.session(adminSession)
+				.param("startDate", "2026-04-01")
+				.param("endDate", "2026-04-30"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.summary.invoiceTotal").value(1000))
+			.andExpect(jsonPath("$.summary.paymentTotal").value(900))
+			.andExpect(jsonPath("$.summary.projectCount").value(2))
+			.andExpect(jsonPath("$.projects.length()").value(2))
+			.andExpect(jsonPath("$.projects[0].projectId").value(projectA))
+			.andExpect(jsonPath("$.projects[0].invoiceAmount").value(1000))
+			.andExpect(jsonPath("$.projects[0].paymentAmount").value(600))
+			.andExpect(jsonPath("$.projects[1].projectId").value(projectB))
+			.andExpect(jsonPath("$.projects[1].invoiceAmount").value(0))
+			.andExpect(jsonPath("$.projects[1].paymentAmount").value(300));
+	}
+
+	@Test
+	void financeStatsRejectsInvalidDateRange() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+
+		mockMvc.perform(get("/api/finance-stats")
+				.session(adminSession)
+				.param("startDate", "2026-04-30")
+				.param("endDate", "2026-04-01"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("开始日期不能晚于结束日期"));
+	}
+
 	private MockHttpSession login(String username, String password) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/auth/login")
 				.contentType(APPLICATION_JSON)
@@ -259,17 +324,21 @@ class AuroraApplicationTests {
 	}
 
 	private Long createProject(MockHttpSession session) throws Exception {
+		return createProject(session, """
+			{
+			  "name":"Aurora 项目",
+			  "customer":"测试客户",
+			  "contractNo":"HT-2026-001",
+			  "signingDate":"2026-04-03",
+			  "contractAmount":8888.88
+			}
+			""");
+	}
+
+	private Long createProject(MockHttpSession session, String json) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/projects").session(session)
 				.contentType(APPLICATION_JSON)
-				.content("""
-					{
-					  "name":"Aurora 项目",
-					  "customer":"测试客户",
-					  "contractNo":"HT-2026-001",
-					  "signingDate":"2026-04-03",
-					  "contractAmount":8888.88
-					}
-					"""))
+				.content(json))
 			.andExpect(status().isOk())
 			.andReturn();
 		return readId(result);

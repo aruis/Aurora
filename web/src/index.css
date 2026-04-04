@@ -91,24 +91,24 @@ textarea {
 }
 
 .app-shell__brand {
-  margin-bottom: 18px;
-  padding: 14px 14px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  margin-bottom: 16px;
+  padding: 8px 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .app-shell__brand-mark {
   display: inline-block;
-  color: rgba(255, 255, 255, 0.72);
-  letter-spacing: 0.28em;
-  font-size: 12px;
+  color: rgba(255, 255, 255, 0.58);
+  letter-spacing: 0.22em;
+  font-size: 11px;
 }
 
 .app-shell__brand-title {
-  margin-top: 8px !important;
+  margin-top: 6px !important;
   margin-bottom: 0 !important;
   color: #fff !important;
+  font-size: 24px !important;
+  font-weight: 600 !important;
 }
 
 .app-shell__brand-copy {
@@ -123,7 +123,7 @@ textarea {
 }
 
 .app-shell__menu.ant-menu .ant-menu-item {
-  height: 48px;
+  height: 46px;
   margin-bottom: 6px;
   border-radius: 14px;
 }
@@ -162,7 +162,7 @@ textarea {
 
 .app-shell__user-trigger.ant-btn {
   height: auto;
-  padding: 8px 10px 8px 8px;
+  padding: 8px 16px 8px 10px;
   border-radius: 18px;
   border: 1px solid rgba(116, 138, 168, 0.18);
   background: rgba(255, 255, 255, 0.72);
@@ -354,6 +354,7 @@ textarea {
 .hero-panel__aside {
   display: grid;
   gap: 14px;
+  align-content: start;
 }
 
 .metric-grid {
@@ -363,7 +364,9 @@ textarea {
 }
 
 .metric-card {
-  min-height: 132px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 176px;
   padding: 18px;
   border: 1px solid rgba(116, 138, 168, 0.14);
   border-radius: 22px;
@@ -385,12 +388,14 @@ textarea {
   display: block;
   color: var(--aurora-text-secondary);
   font-size: 13px;
+  line-height: 1.4;
 }
 
 .metric-card__row {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
   margin-top: 16px;
 }
 
@@ -407,19 +412,60 @@ textarea {
   flex: 0 0 auto;
 }
 
+.metric-card__content {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+}
+
+.metric-card__money {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metric-card__currency {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: var(--aurora-text);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 600;
+}
+
 .metric-card__value.ant-typography {
   margin: 0 !important;
   color: var(--aurora-text) !important;
-  line-height: 1.2 !important;
+  display: block;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  line-height: 1.08 !important;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-card__unit {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  color: var(--aurora-text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 600;
 }
 
 .metric-card__hint.ant-typography {
   display: block;
-  margin-top: 8px;
+  align-self: end;
   color: var(--aurora-text-secondary) !important;
   font-size: 12px;
+  line-height: 1.55;
 }
 
 .highlight-list {
@@ -473,6 +519,53 @@ textarea {
 
 .action-list {
   display: grid;
+  gap: 12px;
+}
+
+.dashboard-side-stack {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+
+.finance-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.finance-summary-chip {
+  display: grid;
+  gap: 10px;
+}
+
+.finance-summary-chip__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.finance-summary-chip__icon.metric-card__icon {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+
+.finance-summary-chip__value.summary-chip__value.ant-typography {
+  margin-top: 0 !important;
+}
+
+.finance-summary-chip__detail.ant-typography {
+  display: block;
+  min-height: 22px;
+  color: var(--aurora-text-secondary) !important;
+  line-height: 1.5;
+}
+
+.table-section-extra {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
@@ -708,19 +801,34 @@ textarea {
   }
 }
 
-@media (max-width: 992px) {
-  .app-shell__sider.ant-layout-sider {
-    position: fixed;
-    z-index: 30;
+@media (max-width: 1520px) {
+  .hero-panel__layout {
+    grid-template-columns: minmax(0, 0.82fr) minmax(540px, 1.18fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 1260px) {
+  .hero-panel__layout {
+    grid-template-columns: 1fr;
   }
 
+  .hero-panel__aside {
+    width: 100%;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
   .app-shell__header.ant-layout-header,
   .app-shell__content.ant-layout-content {
     padding-left: 20px;
     padding-right: 20px;
   }
 
-  .hero-panel__layout,
   .login-panel {
     grid-template-columns: 1fr;
   }
@@ -752,6 +860,10 @@ textarea {
   .detail-kpis,
   .summary-strip {
     grid-template-columns: 1fr;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .highlight-row {
