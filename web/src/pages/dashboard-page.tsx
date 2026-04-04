@@ -1,29 +1,103 @@
 import { ArrowRightOutlined, DollarOutlined, FundOutlined, WalletOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
-import { Button, Col, Empty, Row, Tag, Tooltip, Typography } from 'antd'
+import { Button, Col, Empty, Row, Segmented, Tag, Tooltip, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
 import { formatCompactCurrency, formatCurrency } from '@/lib/format'
 import { useSessionStore } from '@/modules/auth/session-store'
+import { getFinanceStats, type FinanceStatsProjectRow } from '@/modules/finance/api'
 import { getProjects } from '@/modules/projects/api'
+import type { ProjectSummary } from '@/modules/projects/api'
+
+type HighlightSourceKey = 'year-new' | 'recent-invoice' | 'recent-payment'
+
+type HighlightItem = {
+  projectId: number
+  name: string
+  subtitle: string
+  stats: Array<{ label: string, value: string }>
+}
+
+const highlightSourceOptions: Array<{ label: string, value: HighlightSourceKey }> = [
+  { label: '本年新增', value: 'year-new' },
+  { label: '30天内开票', value: 'recent-invoice' },
+  { label: '30天内回款', value: 'recent-payment' },
+]
 
 export function DashboardPage() {
   const user = useSessionStore((state) => state.user)
+  const [highlightSource, setHighlightSource] = useState<HighlightSourceKey>('year-new')
+  const today = dayjs()
+  const yearStart = today.startOf('year').format('YYYY-MM-DD')
+  const recentStart = today.subtract(29, 'day').format('YYYY-MM-DD')
+  const todayLabel = today.format('YYYY-MM-DD')
   const projectsQuery = useQuery({
     queryKey: ['projects.list', {}],
     queryFn: () => getProjects({}),
   })
+  const yearNewProjectsQuery = useQuery({
+    queryKey: ['projects.list', { signingDateStart: yearStart }],
+    queryFn: () => getProjects({ signingDateStart: yearStart }),
+  })
+  const recentFinanceStatsQuery = useQuery({
+    queryKey: ['finance-stats', recentStart, todayLabel],
+    queryFn: () => getFinanceStats({ startDate: recentStart, endDate: todayLabel }),
+  })
 
   const projects = projectsQuery.data ?? []
+  const yearNewProjects = yearNewProjectsQuery.data ?? []
+  const recentFinanceProjects = recentFinanceStatsQuery.data?.projects ?? []
   const totalContractAmount = projects.reduce((sum, item) => sum + Number(item.contractAmount), 0)
   const totalInvoiceAmount = projects.reduce((sum, item) => sum + Number(item.invoicedAmount), 0)
   const totalPaymentAmount = projects.reduce((sum, item) => sum + Number(item.receivedAmount), 0)
   const invoiceRate = totalContractAmount > 0 ? totalInvoiceAmount / totalContractAmount : 0
   const paymentRate = totalInvoiceAmount > 0 ? totalPaymentAmount / totalInvoiceAmount : 0
+  const highlightData = useMemo<Record<HighlightSourceKey, {
+    items: HighlightItem[]
+    count: number
+    subtitle: string
+    emptyText: string
+  }>>(() => ({
+    'year-new': {
+      items: [...yearNewProjects]
+        .sort((left, right) => dayjs(right.signingDate).valueOf() - dayjs(left.signingDate).valueOf())
+        .slice(0, 5)
+        .map(mapYearNewProject),
+      count: yearNewProjects.length,
+      subtitle: '按签约日期倒序展示本年新增项目，优先关注新签项目推进情况。',
+      emptyText: '本年暂无新增项目。',
+    },
+    'recent-invoice': {
+      items: [...recentFinanceProjects]
+        .filter((project) => Number(project.invoiceAmount) > 0)
+        .sort((left, right) => Number(right.invoiceAmount) - Number(left.invoiceAmount))
+        .slice(0, 5)
+        .map((project) => mapRecentFinanceProject(project, 'invoice')),
+      count: recentFinanceProjects.filter((project) => Number(project.invoiceAmount) > 0).length,
+      subtitle: '聚焦近 30 天内有开票动作的项目，按区间开票金额倒序展示。',
+      emptyText: '近 30 天内暂无开票项目。',
+    },
+    'recent-payment': {
+      items: [...recentFinanceProjects]
+        .filter((project) => Number(project.paymentAmount) > 0)
+        .sort((left, right) => Number(right.paymentAmount) - Number(left.paymentAmount))
+        .slice(0, 5)
+        .map((project) => mapRecentFinanceProject(project, 'payment')),
+      count: recentFinanceProjects.filter((project) => Number(project.paymentAmount) > 0).length,
+      subtitle: '聚焦近 30 天内有回款动作的项目，按区间回款金额倒序展示。',
+      emptyText: '近 30 天内暂无回款项目。',
+    },
+  }), [recentFinanceProjects, yearNewProjects])
+  const activeHighlights = highlightData[highlightSource]
+  const highlightLoading = highlightSource === 'year-new'
+    ? yearNewProjectsQuery.isLoading
+    : recentFinanceStatsQuery.isLoading
 
   return (
     <div className="page-stack">
@@ -68,33 +142,50 @@ export function DashboardPage() {
       <Row gutter={[20, 20]}>
         <Col xs={24} xl={16}>
           <PageSection
-            title="重点项目"
-            subtitle="优先查看最新项目和资金推进情况，减少反复跳转。"
-            extra={projects.length > 0 ? <Tag color="blue">共 {projects.length} 个项目</Tag> : null}
+            title={(
+              <div className="dashboard-highlight-heading">
+                <span>项目动态</span>
+                <Tag color="blue" className="dashboard-highlight-count">共 {activeHighlights.count} 个项目</Tag>
+              </div>
+            )}
+            subtitle={activeHighlights.subtitle}
+            extra={(
+              <div className="dashboard-highlight-toolbar">
+                <Segmented<HighlightSourceKey>
+                  options={highlightSourceOptions}
+                  value={highlightSource}
+                  onChange={setHighlightSource}
+                />
+              </div>
+            )}
           >
-            {projects.length > 0 ? (
+            {activeHighlights.items.length > 0 ? (
               <div className="highlight-list">
-                {projects.slice(0, 5).map((project) => (
-                  <div key={project.id} className="highlight-row">
+                {activeHighlights.items.map((project) => (
+                  <div key={project.projectId} className="highlight-row">
                     <div className="highlight-row__meta">
                       <Typography.Text strong className="highlight-row__label">
                         {project.name}
                       </Typography.Text>
                       <Typography.Text className="highlight-row__sub">
-                        {project.customer} · {project.contractNo}
+                        {project.subtitle}
                       </Typography.Text>
                     </div>
-                    <HighlightStat label="合同额" value={formatCurrency(project.contractAmount)} />
-                    <HighlightStat label="已开票" value={formatCurrency(project.invoicedAmount)} />
-                    <HighlightStat label="已回款" value={formatCurrency(project.receivedAmount)} />
+                    {project.stats.map((stat) => (
+                      <HighlightStat key={stat.label} label={stat.label} value={stat.value} />
+                    ))}
                     <Button type="link" icon={<ArrowRightOutlined />}>
-                      <Link to={`/projects/${project.id}`}>查看详情</Link>
+                      <Link to={`/projects/${project.projectId}`}>查看详情</Link>
                     </Button>
                   </div>
                 ))}
               </div>
+            ) : highlightLoading ? (
+              <div className="table-frame" style={{ padding: 24 }}>
+                <Typography.Text type="secondary">正在加载项目摘要...</Typography.Text>
+              </div>
             ) : (
-              <Empty description="暂无项目数据，创建项目后会在这里显示摘要。" />
+              <Empty description={activeHighlights.emptyText} />
             )}
           </PageSection>
         </Col>
@@ -173,4 +264,36 @@ function QuickLink(props: { title: string; description: string; to: string }) {
       </div>
     </Link>
   )
+}
+
+function mapYearNewProject(project: ProjectSummary): HighlightItem {
+  return {
+    projectId: project.id,
+    name: project.name,
+    subtitle: `${project.customer} · ${project.contractNo} · 签约于 ${project.signingDate}`,
+    stats: [
+      { label: '合同额', value: formatCurrency(project.contractAmount) },
+      { label: '累计开票', value: formatCurrency(project.invoicedAmount) },
+      { label: '累计回款', value: formatCurrency(project.receivedAmount) },
+    ],
+  }
+}
+
+function mapRecentFinanceProject(project: FinanceStatsProjectRow, source: 'invoice' | 'payment'): HighlightItem {
+  return {
+    projectId: project.projectId,
+    name: project.projectName,
+    subtitle: `${project.customer} · ${project.contractNo}`,
+    stats: source === 'invoice'
+      ? [
+          { label: '30天内开票', value: formatCurrency(project.invoiceAmount) },
+          { label: '30天内回款', value: formatCurrency(project.paymentAmount) },
+          { label: '资金净额', value: formatCurrency(Number(project.paymentAmount) - Number(project.invoiceAmount)) },
+        ]
+      : [
+          { label: '30天内回款', value: formatCurrency(project.paymentAmount) },
+          { label: '30天内开票', value: formatCurrency(project.invoiceAmount) },
+          { label: '资金净额', value: formatCurrency(Number(project.paymentAmount) - Number(project.invoiceAmount)) },
+        ],
+  }
 }

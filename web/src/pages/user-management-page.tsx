@@ -23,6 +23,7 @@ import { PageSection } from '@/components/page-section'
 import { PermissionGuard } from '@/components/permission-guard'
 import { applyFormErrors } from '@/lib/forms'
 import { isApiError } from '@/lib/http'
+import { buildTablePagination } from '@/lib/table'
 import {
   ROLE_OPTIONS,
   createUser,
@@ -135,7 +136,7 @@ export function UserManagementPage() {
     {
       title: '状态',
       dataIndex: 'enabled',
-      render: (enabled) => <Tag color={enabled ? 'success' : 'default'}>{enabled ? '启用' : '停用'}</Tag>,
+      render: (enabled) => <UserStatusBadge enabled={enabled} />,
     },
     {
       title: '角色',
@@ -171,22 +172,16 @@ export function UserManagementPage() {
           >
             编辑
           </Button>
-          {isProtectedAdmin(record)
+          {!isProtectedAdmin(record)
             ? (
-                <Typography.Text type="secondary" style={{ paddingInline: 8 }}>
-                  不可禁用
-                </Typography.Text>
-              )
-            : (
                 <Popconfirm
                   title={`确认${record.enabled ? '停用' : '启用'}该用户？`}
-                  okText="确定"
-                  cancelText="取消"
                   onConfirm={() => toggleUserStatus(record)}
                 >
                   <Button type="link" style={{ paddingInline: 8 }}>{record.enabled ? '停用' : '启用'}</Button>
                 </Popconfirm>
-              )}
+              )
+            : null}
           <Button
             type="link"
             icon={<LockOutlined />}
@@ -248,16 +243,7 @@ export function UserManagementPage() {
               dataSource={users}
               columns={columns}
               scroll={{ x: 900 }}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: false,
-                showTotal: (total) => `共 ${total} 个账号`,
-              }}
-              footer={() => (
-                <Typography.Text type="secondary">
-                  建议至少保留 1 个启用中的管理员账号，便于后续权限维护。
-                </Typography.Text>
-              )}
+              pagination={buildTablePagination({ showSizeChanger: false, totalUnit: '个账号' })}
             />
           </div>
         </PageSection>
@@ -322,8 +308,6 @@ export function UserManagementPage() {
           open={passwordOpen}
           onCancel={() => setPasswordOpen(false)}
           onOk={() => passwordForm.submit()}
-          okText="确定"
-          cancelText="取消"
           confirmLoading={resetPasswordMutation.isPending}
           destroyOnHidden
         >
@@ -359,5 +343,14 @@ function SummaryChip(props: { label: string; value: string }) {
         {props.value}
       </Typography.Text>
     </div>
+  )
+}
+
+function UserStatusBadge(props: { enabled: boolean }) {
+  return (
+    <span className={`user-status-badge ${props.enabled ? 'user-status-badge--enabled' : 'user-status-badge--disabled'}`}>
+      <span className="user-status-badge__dot" />
+      {props.enabled ? '启用' : '停用'}
+    </span>
   )
 }
