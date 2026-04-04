@@ -99,12 +99,6 @@ export function LoginPage() {
                   登录系统
                 </Button>
               </Form>
-
-              <div className="login-hint">
-                <Typography.Text type="secondary">
-                  默认管理员账号：<Typography.Text code>admin</Typography.Text>
-                </Typography.Text>
-              </div>
             </Space>
           </div>
         </section>
