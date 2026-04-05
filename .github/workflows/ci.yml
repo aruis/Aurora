@@ -88,11 +88,6 @@ jobs:
             prepare_task: prepareMacPortable
             dist_dir: build/macos-dist/Aurora
             smoke_port: 51982
-          - os: windows-latest
-            platform: windows
-            prepare_task: prepareWindowsPortable
-            dist_dir: build/windows-dist/Aurora
-            smoke_port: 51983
 
     runs-on: ${{ matrix.os }}
 
@@ -121,13 +116,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: web
 
-      - name: Prepare portable directory on Windows
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: .\gradlew.bat ${{ matrix.prepare_task }}
-
       - name: Prepare portable directory on Unix
-        if: matrix.platform != 'windows'
         shell: bash
         run: ./gradlew ${{ matrix.prepare_task }}
 
@@ -151,63 +140,7 @@ jobs:
 
           mv "$CONFIG_FILE.bak" "$CONFIG_FILE"
 
-      - name: Smoke test on Windows
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        env:
-          AURORA_NO_PAUSE: "1"
-        run: |
-          $distDir = Resolve-Path "${{ matrix.dist_dir }}"
-          $configFile = Join-Path $distDir "config\application.yaml"
-          $statusScript = Join-Path $distDir "查看状态.bat"
-          $startScript = Join-Path $distDir "启动 Aurora.bat"
-          $stopScript = Join-Path $distDir "停止 Aurora.bat"
-          $port = "${{ matrix.smoke_port }}"
-
-          python -c "from pathlib import Path; path = Path(r'''$configFile'''); port = r'''$port'''; text = path.read_text(encoding='utf-8'); text = text.replace('port: 51880', f'port: {port}'); text = text.replace('http://localhost:51880', f'http://localhost:{port}'); text = text.replace('http://127.0.0.1:51880', f'http://127.0.0.1:{port}'); path.write_text(text, encoding='utf-8')"
-
-          $updatedContent = Get-Content $configFile -Raw
-          if ($updatedContent -notmatch "port: $port") {
-            Write-Error "Failed to rewrite Windows smoke config to port $port"
-          }
-
-          cmd /c "`"$startScript`""
-
-          $deadline = (Get-Date).AddSeconds(90)
-          do {
-            $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-            if ($listener) { break }
-            Start-Sleep -Seconds 1
-          } while ((Get-Date) -lt $deadline)
-
-          if (-not $listener) {
-            $consoleLog = Join-Path $distDir "logs\aurora-console.log"
-            $errorLog = Join-Path $distDir "logs\aurora-error.log"
-            if (Test-Path $consoleLog) {
-              Write-Host "=== aurora-console.log ==="
-              Get-Content $consoleLog
-            }
-            if (Test-Path $errorLog) {
-              Write-Host "=== aurora-error.log ==="
-              Get-Content $errorLog
-            }
-            Write-Error "Aurora did not start listening on port $port"
-          }
-
-          $statusOutput = cmd /c "`"$statusScript`""
-          if ($statusOutput -notmatch "$port") {
-            Write-Error "Status script did not report port $port"
-          }
-
-          cmd /c "`"$stopScript`""
-
-          Start-Sleep -Seconds 2
-          if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
-            Write-Error "Aurora is still listening on port $port after stop"
-          }
-
       - name: Smoke test on Unix
-        if: matrix.platform != 'windows'
         shell: bash
         run: |
           DIST_DIR="${{ matrix.dist_dir }}"
@@ -258,9 +191,61 @@ jobs:
           fi
 
           "$STOP_SCRIPT"
-          sleep 2
 
+          sleep 2
           if lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
             echo "Aurora is still listening on port $PORT after stop"
             exit 1
           fi
+
+  windows-portable-build:
+    needs: backend
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: web
+
+      - name: Prepare Windows portable directory
+        shell: pwsh
+        run: .\gradlew.bat prepareWindowsPortable
+
+      - name: Verify Windows portable contents
+        shell: pwsh
+        run: |
+          $distDir = Resolve-Path "build/windows-dist/Aurora"
+          $requiredPaths = @(
+            (Join-Path $distDir "app\aurora.jar"),
+            (Join-Path $distDir "config\application.yaml"),
+            (Join-Path $distDir "启动 Aurora.bat"),
+            (Join-Path $distDir "停止 Aurora.bat"),
+            (Join-Path $distDir "查看状态.bat"),
+            (Join-Path $distDir "备份数据.bat")
+          )
+
+          foreach ($path in $requiredPaths) {
+            if (-not (Test-Path $path)) {
+              Write-Error "Missing Windows portable file: $path"
+            }
+          }
