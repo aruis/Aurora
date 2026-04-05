@@ -164,11 +164,18 @@ jobs:
           $stopScript = Join-Path $distDir "停止 Aurora.bat"
           $port = "${{ matrix.smoke_port }}"
 
-          (Get-Content $configFile) `
-            -replace '(^\s+port:\s*)\d+$', "`$1$port" `
-            -replace 'http://localhost:\d+', "http://localhost:$port" `
-            -replace 'http://127\.0\.0\.1:\d+', "http://127.0.0.1:$port" `
-            | Set-Content $configFile
+          $content = Get-Content $configFile -Raw
+          $content = [regex]::Replace(
+            $content,
+            '(?m)^(\s+port:\s*)\d+$',
+            [System.Text.RegularExpressions.MatchEvaluator]{
+              param($match)
+              $match.Groups[1].Value + $port
+            }
+          )
+          $content = $content.Replace('http://localhost:51880', "http://localhost:$port")
+          $content = $content.Replace('http://127.0.0.1:51880', "http://127.0.0.1:$port")
+          Set-Content $configFile -Value $content
 
           cmd /c "`"$startScript`""
 
