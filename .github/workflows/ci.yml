@@ -164,18 +164,21 @@ jobs:
           $stopScript = Join-Path $distDir "停止 Aurora.bat"
           $port = "${{ matrix.smoke_port }}"
 
-          $content = Get-Content $configFile -Raw
-          $content = [regex]::Replace(
-            $content,
-            '(?m)^(\s+port:\s*)\d+$',
-            [System.Text.RegularExpressions.MatchEvaluator]{
-              param($match)
-              $match.Groups[1].Value + $port
-            }
-          )
-          $content = $content.Replace('http://localhost:51880', "http://localhost:$port")
-          $content = $content.Replace('http://127.0.0.1:51880', "http://127.0.0.1:$port")
-          Set-Content $configFile -Value $content
+          python -c @"
+from pathlib import Path
+path = Path(r'''$configFile''')
+port = r'''$port'''
+text = path.read_text(encoding='utf-8')
+text = text.replace('port: 51880', f'port: {port}')
+text = text.replace('http://localhost:51880', f'http://localhost:{port}')
+text = text.replace('http://127.0.0.1:51880', f'http://127.0.0.1:{port}')
+path.write_text(text, encoding='utf-8')
+"@
+
+          $updatedContent = Get-Content $configFile -Raw
+          if ($updatedContent -notmatch "port: $port") {
+            Write-Error "Failed to rewrite Windows smoke config to port $port"
+          }
 
           cmd /c "`"$startScript`""
 
