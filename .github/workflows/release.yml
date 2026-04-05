@@ -255,7 +255,7 @@ jobs:
           1. 先停止旧版本 Aurora。
           2. 备份原有 \`data/aurora.db\`。
           3. 用新版本覆盖程序目录，保留原有 \`data/\` 和 \`logs/\`。
-          4. 启动新版本并验证访问地址 \`http://localhost:8080\`。
+          4. 启动新版本并验证访问地址 \`http://localhost:51889\`。
 
           ## 附加文档
           - Windows 绿色包交付说明：[\`docs/windows-portable.md\`](https://github.com/${{ github.repository }}/blob/main/docs/windows-portable.md)

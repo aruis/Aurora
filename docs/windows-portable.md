@@ -66,7 +66,7 @@ app/runtime/bin/java.exe
 推荐直接将完整的 `Aurora/` 目录打包成 ZIP 发给现场人员，现场只需要：
 - 解压到本地磁盘，例如 `D:\Aurora`
 - 双击 `启动 Aurora.bat`
-- 浏览器打开配置文件中的地址，默认是 `http://localhost:51880`
+- 浏览器打开配置文件中的地址，默认是 `http://localhost:51889`
 
 ## 脚本说明
 
@@ -76,7 +76,7 @@ app/runtime/bin/java.exe
 - 自动创建 `data/`、`logs/`、`run/`、`data/backup/`
 - 将标准输出写入 `logs/aurora-console.log`
 - 将错误输出写入 `logs/aurora-error.log`
-- 应用日志写入 `logs/aurora.log`
+- 应用日志写入 `logs/aurora.log`，并会自动按大小滚动归档
 
 ### `停止 Aurora.bat`
 - 优先按 `run/aurora.pid` 停止
@@ -100,9 +100,9 @@ config/application.yaml
 ```
 
 默认关键配置：
-- 端口：以 `config/application.yaml` 中的 `server.port` 为准，默认是 `51880`
+- 端口：以 `config/application.yaml` 中的 `server.port` 为准，默认是 `51889`
 - 数据库：`./data/aurora.db`
-- 日志：`./logs/aurora.log`
+- 日志：`./logs/aurora.log`，单文件达到 `10MB` 后自动滚动，最多保留 `14` 天且总量不超过 `500MB`
 
 如果现场需要修改端口或数据库位置，只改这一个文件即可。
 
@@ -111,7 +111,7 @@ config/application.yaml
 1. 解压绿色包到固定目录
 2. 放入内置 Java 运行时
 3. 双击 `启动 Aurora.bat`
-4. 确认浏览器可访问配置文件中的地址，默认是 `http://localhost:51880`
+4. 确认浏览器可访问配置文件中的地址，默认是 `http://localhost:51889`
 5. 如果 Windows 弹出防火墙提示，选择允许访问
 6. 用默认管理员账号登录并修改密码
 
