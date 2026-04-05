@@ -26,7 +26,7 @@ if "%PORT%"=="" (
 if exist "%PID_FILE%" (
   set /p TARGET_PID=<"%PID_FILE%"
   if not "!TARGET_PID!"=="" (
-    tasklist /FI "PID eq !TARGET_PID!" | findstr /R /C:" !TARGET_PID! " >nul 2>&1
+    call :pid_is_running !TARGET_PID!
     if not errorlevel 1 (
       echo Aurora is running.
       echo PID: !TARGET_PID!
@@ -48,6 +48,10 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr /R /C:":%PORT% .*LISTENING"')
 echo Aurora is not running.
 call :maybe_pause
 exit /b 0
+
+:pid_is_running
+powershell -NoProfile -Command "if (Get-Process -Id %1 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul
+exit /b %errorlevel%
 
 :maybe_pause
 if defined AURORA_NO_PAUSE exit /b 0

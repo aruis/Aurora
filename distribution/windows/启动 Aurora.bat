@@ -41,7 +41,7 @@ if not exist "%RUN_DIR%" mkdir "%RUN_DIR%"
 if exist "%PID_FILE%" (
   set /p EXISTING_PID=<"%PID_FILE%"
   if not "!EXISTING_PID!"=="" (
-    tasklist /FI "PID eq !EXISTING_PID!" | findstr /R /C:" !EXISTING_PID! " >nul 2>&1
+    call :pid_is_running !EXISTING_PID!
     if not errorlevel 1 (
       echo Aurora is already running. PID: !EXISTING_PID!
       echo Access URL: %ACCESS_URL%
@@ -105,7 +105,7 @@ if "%STARTED_PID%"=="" (
 
 set "WAIT_SECONDS=20"
 for /L %%i in (1,1,%WAIT_SECONDS%) do (
-  tasklist /FI "PID eq %STARTED_PID%" | findstr /R /C:" %STARTED_PID% " >nul 2>&1
+  call :pid_is_running %STARTED_PID%
   if errorlevel 1 (
     echo Aurora exited early. Check logs\aurora-console.log and logs\aurora-error.log.
     if exist "%PID_FILE%" del "%PID_FILE%" >nul 2>&1
@@ -135,6 +135,10 @@ echo Log directory: %LOG_DIR%
 echo Use the stop script in this folder to stop Aurora.
 call :maybe_pause
 exit /b 0
+
+:pid_is_running
+powershell -NoProfile -Command "if (Get-Process -Id %1 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul
+exit /b %errorlevel%
 
 :maybe_pause
 if defined AURORA_NO_PAUSE exit /b 0
