@@ -103,20 +103,20 @@ if "%STARTED_PID%"=="" (
   exit /b 1
 )
 
-set "WAIT_SECONDS=20"
+set "WAIT_SECONDS=60"
 for /L %%i in (1,1,%WAIT_SECONDS%) do (
-  call :pid_is_running %STARTED_PID%
-  if errorlevel 1 (
-    echo Aurora exited early. Check logs\aurora-console.log and logs\aurora-error.log.
-    if exist "%PID_FILE%" del "%PID_FILE%" >nul 2>&1
-    call :maybe_pause
-    exit /b 1
-  )
-
   netstat -ano | findstr /R /C:":%PORT% .*LISTENING" >nul 2>&1
   if not errorlevel 1 goto started
 
   powershell -NoProfile -Command "Start-Sleep -Seconds 1" >nul
+)
+
+call :pid_is_running %STARTED_PID%
+if errorlevel 1 (
+  echo Aurora exited before port %PORT% became ready. Check logs\aurora-console.log and logs\aurora-error.log.
+  if exist "%PID_FILE%" del "%PID_FILE%" >nul 2>&1
+  call :maybe_pause
+  exit /b 1
 )
 
 echo Aurora process started, but port %PORT% is not ready yet.

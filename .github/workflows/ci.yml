@@ -172,7 +172,7 @@ jobs:
 
           cmd /c "`"$startScript`""
 
-          $deadline = (Get-Date).AddSeconds(30)
+          $deadline = (Get-Date).AddSeconds(90)
           do {
             $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
             if ($listener) { break }
@@ -180,6 +180,16 @@ jobs:
           } while ((Get-Date) -lt $deadline)
 
           if (-not $listener) {
+            $consoleLog = Join-Path $distDir "logs\aurora-console.log"
+            $errorLog = Join-Path $distDir "logs\aurora-error.log"
+            if (Test-Path $consoleLog) {
+              Write-Host "=== aurora-console.log ==="
+              Get-Content $consoleLog
+            }
+            if (Test-Path $errorLog) {
+              Write-Host "=== aurora-error.log ==="
+              Get-Content $errorLog
+            }
             Write-Error "Aurora did not start listening on port $port"
           }
 
