@@ -164,16 +164,7 @@ jobs:
           $stopScript = Join-Path $distDir "停止 Aurora.bat"
           $port = "${{ matrix.smoke_port }}"
 
-          python -c @"
-from pathlib import Path
-path = Path(r'''$configFile''')
-port = r'''$port'''
-text = path.read_text(encoding='utf-8')
-text = text.replace('port: 51880', f'port: {port}')
-text = text.replace('http://localhost:51880', f'http://localhost:{port}')
-text = text.replace('http://127.0.0.1:51880', f'http://127.0.0.1:{port}')
-path.write_text(text, encoding='utf-8')
-"@
+          python -c "from pathlib import Path; path = Path(r'''$configFile'''); port = r'''$port'''; text = path.read_text(encoding='utf-8'); text = text.replace('port: 51880', f'port: {port}'); text = text.replace('http://localhost:51880', f'http://localhost:{port}'); text = text.replace('http://127.0.0.1:51880', f'http://127.0.0.1:{port}'); path.write_text(text, encoding='utf-8')"
 
           $updatedContent = Get-Content $configFile -Raw
           if ($updatedContent -notmatch "port: $port") {
