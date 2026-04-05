@@ -80,19 +80,100 @@ jobs:
         shell: bash
         run: ./gradlew "-PreleaseVersion=$RELEASE_VERSION" ${{ matrix.prepare_task }}
 
-      - name: Embed Windows runtime
+      - name: Build Windows runtime
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "${{ matrix.dist_dir }}\app\runtime" | Out-Null
-          Copy-Item -Path "$env:JAVA_HOME\*" -Destination "${{ matrix.dist_dir }}\app\runtime" -Recurse -Force
+          $jarFile = (Resolve-Path "${{ matrix.dist_dir }}\app\aurora.jar").Path
+          $workDir = Join-Path $PWD "build\jlink-work"
+          $runtimeDir = "${{ matrix.dist_dir }}\app\runtime"
+          $availableModules = Get-ChildItem "$env:JAVA_HOME\jmods" -Filter *.jmod | ForEach-Object { $_.BaseName }
+          $extraModules = @("java.naming", "java.sql", "java.xml", "jdk.crypto.ec")
 
-      - name: Embed Unix runtime
+          if (Test-Path $workDir) {
+            Remove-Item -Path $workDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $workDir | Out-Null
+
+          Push-Location $workDir
+          & "$env:JAVA_HOME\bin\jar.exe" xf $jarFile
+          $detectedModules = & "$env:JAVA_HOME\bin\jdeps.exe" --ignore-missing-deps --multi-release 21 --print-module-deps --recursive --class-path "BOOT-INF/lib/*" BOOT-INF/classes
+          Pop-Location
+
+          $moduleList = (($detectedModules -split ',') + $extraModules) `
+            | ForEach-Object { $_.Trim() } `
+            | Where-Object { $_ -and ($availableModules -contains $_) } `
+            | Sort-Object -Unique
+
+          Write-Host ("Windows jlink modules: {0}" -f ([string]::Join(',', $moduleList)))
+
+          if (Test-Path $runtimeDir) {
+            Remove-Item -Path $runtimeDir -Recurse -Force
+          }
+
+          & "$env:JAVA_HOME\bin\jlink.exe" `
+            --add-modules ([string]::Join(',', $moduleList)) `
+            --strip-debug `
+            --no-header-files `
+            --no-man-pages `
+            --compress=zip-6 `
+            --output $runtimeDir
+
+          Get-ChildItem $runtimeDir -Recurse | Measure-Object -Property Length -Sum | ForEach-Object {
+            Write-Host ("Windows runtime size: {0:N2} MB" -f ($_.Sum / 1MB))
+          }
+
+      - name: Build Unix runtime
         if: matrix.platform != 'windows'
         shell: bash
         run: |
-          mkdir -p "${{ matrix.dist_dir }}/app/runtime"
-          cp -R "$JAVA_HOME"/. "${{ matrix.dist_dir }}/app/runtime/"
+          JAR_FILE="${{ matrix.dist_dir }}/app/aurora.jar"
+          WORK_DIR="build/jlink-work"
+          RUNTIME_DIR="${{ matrix.dist_dir }}/app/runtime"
+
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
+          (
+            cd "$WORK_DIR"
+            "$JAVA_HOME/bin/jar" xf "$GITHUB_WORKSPACE/$JAR_FILE"
+          )
+
+          DETECTED_MODULES=$(
+            cd "$WORK_DIR" && \
+            "$JAVA_HOME/bin/jdeps" \
+              --ignore-missing-deps \
+              --multi-release 21 \
+              --print-module-deps \
+              --recursive \
+              --class-path "BOOT-INF/lib/*" \
+              BOOT-INF/classes
+          )
+
+          AVAILABLE_MODULES=$(find "$JAVA_HOME/jmods" -maxdepth 1 -name '*.jmod' -exec basename {} .jmod \;)
+          MODULE_LIST=$(
+            {
+              printf '%s\n' "$DETECTED_MODULES" | tr ',' '\n'
+              printf '%s\n' java.naming java.sql java.xml jdk.crypto.ec
+            } \
+              | sed '/^$/d' \
+              | sort -u \
+              | grep -Fx -f <(printf '%s\n' "$AVAILABLE_MODULES") \
+              | tr '\n' ',' \
+              | sed 's/,$//'
+          )
+
+          echo "Unix jlink modules: $MODULE_LIST"
+
+          rm -rf "$RUNTIME_DIR"
+          "$JAVA_HOME/bin/jlink" \
+            --add-modules "$MODULE_LIST" \
+            --strip-debug \
+            --no-header-files \
+            --no-man-pages \
+            --compress=zip-6 \
+            --output "$RUNTIME_DIR"
+
+          du -sh "$RUNTIME_DIR"
 
       - name: Create Windows archive
         if: matrix.platform == 'windows'
