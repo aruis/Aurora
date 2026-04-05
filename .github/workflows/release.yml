@@ -14,6 +14,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     strategy:
@@ -215,7 +218,7 @@ jobs:
           fi
 
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
 
@@ -257,14 +260,22 @@ jobs:
           EOF
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.RELEASE_VERSION }}
-          name: Aurora v${{ env.RELEASE_VERSION }}
-          target_commitish: ${{ github.sha }}
-          body_path: release-body.md
-          files: |
-            release-assets/**/*.zip
-            release-assets/**/*.tar.gz
-            SHA256SUMS.txt
-          fail_on_unmatched_files: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${RELEASE_VERSION}"
+          TITLE="Aurora v${RELEASE_VERSION}"
+
+          mapfile -t ASSETS < <(find release-assets -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort)
+          ASSETS+=("SHA256SUMS.txt")
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" --notes-file release-body.md
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --title "$TITLE" \
+              --target "${GITHUB_SHA}" \
+              --notes-file release-body.md
+          fi
