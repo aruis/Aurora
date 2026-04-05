@@ -71,3 +71,185 @@ jobs:
 
       - name: Run backend tests
         run: ./gradlew test
+
+  portable-smoke:
+    needs: backend
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            prepare_task: prepareLinuxPortable
+            dist_dir: build/linux-dist/Aurora
+            smoke_port: 51981
+          - os: macos-latest
+            platform: macos
+            prepare_task: prepareMacPortable
+            dist_dir: build/macos-dist/Aurora
+            smoke_port: 51982
+          - os: windows-latest
+            platform: windows
+            prepare_task: prepareWindowsPortable
+            dist_dir: build/windows-dist/Aurora
+            smoke_port: 51983
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: web
+
+      - name: Prepare portable directory on Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: .\gradlew.bat ${{ matrix.prepare_task }}
+
+      - name: Prepare portable directory on Unix
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: ./gradlew ${{ matrix.prepare_task }}
+
+      - name: Validate missing port fails on Linux
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          CONFIG_FILE="${{ matrix.dist_dir }}/config/application.yaml"
+          cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
+          awk '
+            BEGIN {skip=0}
+            /^server:/ {skip=1; print; next}
+            skip && /^[[:space:]]+port:/ {next}
+            {print}
+          ' "$CONFIG_FILE.bak" > "$CONFIG_FILE"
+
+          if bash "${{ matrix.dist_dir }}/start-aurora.sh"; then
+            echo "Expected start script to fail when server.port is missing"
+            exit 1
+          fi
+
+          mv "$CONFIG_FILE.bak" "$CONFIG_FILE"
+
+      - name: Smoke test on Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          AURORA_NO_PAUSE: "1"
+        run: |
+          $distDir = Resolve-Path "${{ matrix.dist_dir }}"
+          $configFile = Join-Path $distDir "config\application.yaml"
+          $statusScript = Join-Path $distDir "查看状态.bat"
+          $startScript = Join-Path $distDir "启动 Aurora.bat"
+          $stopScript = Join-Path $distDir "停止 Aurora.bat"
+          $port = "${{ matrix.smoke_port }}"
+
+          (Get-Content $configFile) `
+            -replace '(^\s+port:\s*)\d+$', "`$1$port" `
+            -replace 'http://localhost:\d+', "http://localhost:$port" `
+            -replace 'http://127\.0\.0\.1:\d+', "http://127.0.0.1:$port" `
+            | Set-Content $configFile
+
+          cmd /c "`"$startScript`""
+
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+            if ($listener) { break }
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+
+          if (-not $listener) {
+            Write-Error "Aurora did not start listening on port $port"
+          }
+
+          $statusOutput = cmd /c "`"$statusScript`""
+          if ($statusOutput -notmatch "$port") {
+            Write-Error "Status script did not report port $port"
+          }
+
+          cmd /c "`"$stopScript`""
+
+          Start-Sleep -Seconds 2
+          if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
+            Write-Error "Aurora is still listening on port $port after stop"
+          }
+
+      - name: Smoke test on Unix
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          DIST_DIR="${{ matrix.dist_dir }}"
+          CONFIG_FILE="$DIST_DIR/config/application.yaml"
+          PORT="${{ matrix.smoke_port }}"
+
+          python3 - "$CONFIG_FILE" "$PORT" <<'PY'
+          import sys
+          path = sys.argv[1]
+          port = sys.argv[2]
+          text = open(path, encoding="utf-8").read()
+          text = text.replace("port: 51880", f"port: {port}")
+          text = text.replace("http://localhost:51880", f"http://localhost:{port}")
+          text = text.replace("http://127.0.0.1:51880", f"http://127.0.0.1:{port}")
+          open(path, "w", encoding="utf-8").write(text)
+          PY
+
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            START_SCRIPT="$DIST_DIR/start-aurora.sh"
+            STATUS_SCRIPT="$DIST_DIR/status-aurora.sh"
+            STOP_SCRIPT="$DIST_DIR/stop-aurora.sh"
+          else
+            START_SCRIPT="$DIST_DIR/start-aurora.command"
+            STATUS_SCRIPT="$DIST_DIR/status-aurora.command"
+            STOP_SCRIPT="$DIST_DIR/stop-aurora.command"
+          fi
+
+          chmod +x "$START_SCRIPT" "$STATUS_SCRIPT" "$STOP_SCRIPT"
+          "$START_SCRIPT"
+
+          for _ in $(seq 1 30); do
+            if lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+            echo "Aurora did not start listening on port $PORT"
+            exit 1
+          fi
+
+          STATUS_OUTPUT="$("$STATUS_SCRIPT")"
+          echo "$STATUS_OUTPUT"
+          if ! grep -q "$PORT" <<<"$STATUS_OUTPUT"; then
+            echo "Status script did not report port $PORT"
+            exit 1
+          fi
+
+          "$STOP_SCRIPT"
+          sleep 2
+
+          if lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+            echo "Aurora is still listening on port $PORT after stop"
+            exit 1
+          fi

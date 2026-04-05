@@ -19,7 +19,7 @@ if exist "%PID_FILE%" (
     if not errorlevel 1 (
       echo Aurora is running.
       echo Stop Aurora before backup to avoid an incomplete database copy.
-      pause
+      call :maybe_pause
       exit /b 1
     )
   )
@@ -28,7 +28,7 @@ if exist "%PID_FILE%" (
 if not exist "%DB_FILE%" (
   echo Database file not found: %DB_FILE%
   echo Start Aurora once to create the database, then run backup again.
-  pause
+  call :maybe_pause
   exit /b 1
 )
 
@@ -38,10 +38,16 @@ set "TARGET_FILE=%BACKUP_DIR%\aurora-%STAMP%.db"
 copy /Y "%DB_FILE%" "%TARGET_FILE%" >nul
 if errorlevel 1 (
   echo Backup failed. Check disk space and folder permissions.
-  pause
+  call :maybe_pause
   exit /b 1
 )
 
 echo Backup completed:
 echo %TARGET_FILE%
+call :maybe_pause
+exit /b 0
+
+:maybe_pause
+if defined AURORA_NO_PAUSE exit /b 0
 pause
+exit /b 0

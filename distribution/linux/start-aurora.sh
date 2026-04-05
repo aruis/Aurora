@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$ROOT_DIR/app"
+CONFIG_FILE="$ROOT_DIR/config/application.yaml"
 DATA_DIR="$ROOT_DIR/data"
 BACKUP_DIR="$DATA_DIR/backup"
 LOG_DIR="$ROOT_DIR/logs"
@@ -11,7 +12,16 @@ RUN_DIR="$ROOT_DIR/run"
 PID_FILE="$RUN_DIR/aurora.pid"
 JAR_FILE="$APP_DIR/aurora.jar"
 JAVA_EXE="$APP_DIR/runtime/bin/java"
-PORT=51880
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "未找到配置文件：$CONFIG_FILE"
+  exit 1
+fi
+
+PORT="$(awk -F: '/^[[:space:]]+port:[[:space:]]*[0-9]+[[:space:]]*$/ {gsub(/[[:space:]]/, "", $2); print $2; exit}' "$CONFIG_FILE")"
+if [[ -z "$PORT" ]]; then
+  echo "无法从 $CONFIG_FILE 读取 server.port"
+  exit 1
+fi
 
 mkdir -p "$DATA_DIR" "$BACKUP_DIR" "$LOG_DIR" "$RUN_DIR"
 

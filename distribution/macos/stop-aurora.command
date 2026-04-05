@@ -3,8 +3,19 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG_FILE="$ROOT_DIR/config/application.yaml"
 PID_FILE="$ROOT_DIR/run/aurora.pid"
-PORT=51880
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "未找到配置文件：$CONFIG_FILE"
+  exit 1
+fi
+
+PORT="$(awk -F: '/^[[:space:]]+port:[[:space:]]*[0-9]+[[:space:]]*$/ {gsub(/[[:space:]]/, "", $2); print $2; exit}' "$CONFIG_FILE")"
+if [[ -z "$PORT" ]]; then
+  echo "无法从 $CONFIG_FILE 读取 server.port"
+  exit 1
+fi
 
 stop_pid() {
   local pid="${1:-}"

@@ -4,7 +4,7 @@ Aurora Linux 绿色包使用说明
 2. 建议将 Linux Java 21 运行时解压到 app/runtime/
 3. 在终端进入 Aurora 目录
 4. 执行 ./start-aurora.sh
-5. 浏览器打开 http://localhost:51880
+5. 浏览器打开配置文件里的地址，默认是 http://localhost:51880
 
 常用命令
 - 启动系统：./start-aurora.sh

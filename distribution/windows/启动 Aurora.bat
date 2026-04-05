@@ -6,6 +6,7 @@ cd /d "%ROOT_DIR%"
 
 set "APP_DIR=%ROOT_DIR%app"
 set "CONFIG_DIR=%ROOT_DIR%config"
+set "CONFIG_FILE=%CONFIG_DIR%\application.yaml"
 set "DATA_DIR=%ROOT_DIR%data"
 set "BACKUP_DIR=%DATA_DIR%\backup"
 set "LOG_DIR=%ROOT_DIR%logs"
@@ -13,9 +14,24 @@ set "RUN_DIR=%ROOT_DIR%run"
 set "PID_FILE=%RUN_DIR%\aurora.pid"
 set "JAVA_EXE=%APP_DIR%\runtime\bin\java.exe"
 set "JAR_FILE=%APP_DIR%\aurora.jar"
-set "PORT=51880"
-set "ACCESS_URL=http://localhost:%PORT%"
+set "PORT="
+set "ACCESS_URL="
 set "STARTED_PID="
+
+if not exist "%CONFIG_FILE%" (
+  echo Missing config file: %CONFIG_FILE%
+  call :maybe_pause
+  exit /b 1
+)
+
+for /f "tokens=2 delims=:" %%p in ('findstr /R /B /C:"  port:" "%CONFIG_FILE%"') do set "PORT_RAW=%%p"
+set "PORT=%PORT_RAW: =%"
+if "%PORT%"=="" (
+  echo Could not read server.port from %CONFIG_FILE%
+  call :maybe_pause
+  exit /b 1
+)
+set "ACCESS_URL=http://localhost:%PORT%"
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
@@ -29,7 +45,7 @@ if exist "%PID_FILE%" (
     if not errorlevel 1 (
       echo Aurora is already running. PID: !EXISTING_PID!
       echo Access URL: %ACCESS_URL%
-      pause
+      call :maybe_pause
       exit /b 0
     )
   )
@@ -38,14 +54,14 @@ if exist "%PID_FILE%" (
 netstat -ano | findstr /R /C:":%PORT% .*LISTENING" >nul 2>&1
 if not errorlevel 1 (
   echo Port %PORT% is already in use. Please free the port and try again.
-  pause
+  call :maybe_pause
   exit /b 1
 )
 
 if not exist "%JAR_FILE%" (
   echo Missing file: %JAR_FILE%
   echo Please rebuild the Windows portable package and try again.
-  pause
+  call :maybe_pause
   exit /b 1
 )
 
@@ -55,7 +71,7 @@ if not exist "%JAVA_EXE%" (
   if errorlevel 1 (
     echo No bundled Java runtime found, and no system Java is available.
     echo Put a Windows Java runtime under app\runtime\ and try again.
-    pause
+    call :maybe_pause
     exit /b 1
   )
 )
@@ -73,7 +89,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 
 if errorlevel 1 (
   echo Start command failed. Check logs\aurora-console.log and logs\aurora-error.log.
-  pause
+  call :maybe_pause
   exit /b 1
 )
 
@@ -83,7 +99,7 @@ if exist "%PID_FILE%" (
 
 if "%STARTED_PID%"=="" (
   echo Aurora did not return a PID. Check logs\aurora-console.log and logs\aurora-error.log.
-  pause
+  call :maybe_pause
   exit /b 1
 )
 
@@ -93,7 +109,7 @@ for /L %%i in (1,1,%WAIT_SECONDS%) do (
   if errorlevel 1 (
     echo Aurora exited early. Check logs\aurora-console.log and logs\aurora-error.log.
     if exist "%PID_FILE%" del "%PID_FILE%" >nul 2>&1
-    pause
+    call :maybe_pause
     exit /b 1
   )
 
@@ -108,7 +124,7 @@ echo It may still be starting. If the page does not open soon, check logs\aurora
 echo PID: %STARTED_PID%
 echo Access URL: %ACCESS_URL%
 echo Log directory: %LOG_DIR%
-pause
+call :maybe_pause
 exit /b 0
 
 :started
@@ -117,4 +133,10 @@ echo PID: %STARTED_PID%
 echo Access URL: %ACCESS_URL%
 echo Log directory: %LOG_DIR%
 echo Use the stop script in this folder to stop Aurora.
+call :maybe_pause
+exit /b 0
+
+:maybe_pause
+if defined AURORA_NO_PAUSE exit /b 0
 pause
+exit /b 0

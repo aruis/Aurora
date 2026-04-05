@@ -5,7 +5,7 @@ Aurora Windows 使用说明
 2. 进入 Aurora 文件夹
 3. 双击 “启动 Aurora.bat”
 4. 等待提示启动完成
-5. 打开浏览器，访问 http://localhost:51880
+5. 打开浏览器，访问配置文件里的地址，默认是 http://localhost:51880
 6. 如果 Windows 弹出防火墙提示，请点击允许访问
 
 二、平时常用
@@ -31,11 +31,12 @@ Aurora Windows 使用说明
 4. 用旧版本里的 data\aurora.db 覆盖新版本里的 data\aurora.db
 5. 如果旧版本里有需要保留的配置，再检查 config\application.yaml 是否也要同步
 6. 在新版本文件夹里，双击 “启动 Aurora.bat”
-7. 浏览器打开 http://localhost:51880，确认可以正常登录和查看数据
+7. 浏览器打开配置文件里的地址，确认可以正常登录和查看数据
 8. 确认新版本没有问题后，再删除旧版本文件夹
 
 五、请注意
 - 不要手动删除 data\aurora.db
 - 首次启动时，如果 Windows 弹出防火墙提示，请选择允许访问
 - 如果启动失败，请先查看 logs\aurora-console.log、logs\aurora-error.log 和 logs\aurora.log
-- 如果 51880 端口已被占用，请先关闭旧版本，或修改 config\application.yaml
+- 如果需要修改端口，只改 config\application.yaml 即可
+- 如果配置中的端口已被占用，请先关闭旧版本，或修改 config\application.yaml
