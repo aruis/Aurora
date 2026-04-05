@@ -66,7 +66,7 @@ app/runtime/bin/java.exe
 推荐直接将完整的 `Aurora/` 目录打包成 ZIP 发给现场人员，现场只需要：
 - 解压到本地磁盘，例如 `D:\Aurora`
 - 双击 `启动 Aurora.bat`
-- 浏览器打开 `http://localhost:8080`
+- 浏览器打开 `http://localhost:51880`
 
 ## 脚本说明
 
@@ -80,7 +80,7 @@ app/runtime/bin/java.exe
 
 ### `停止 Aurora.bat`
 - 优先按 `run/aurora.pid` 停止
-- PID 不存在时尝试按 8080 端口查找进程
+- PID 不存在时尝试按 51880 端口查找进程
 
 ### `查看状态.bat`
 - 显示当前是否运行
@@ -100,7 +100,7 @@ config/application.yaml
 ```
 
 默认关键配置：
-- 端口：`8080`
+- 端口：`51880`
 - 数据库：`./data/aurora.db`
 - 日志：`./logs/aurora.log`
 
@@ -111,22 +111,22 @@ config/application.yaml
 1. 解压绿色包到固定目录
 2. 放入内置 Java 运行时
 3. 双击 `启动 Aurora.bat`
-4. 确认浏览器可访问 `http://localhost:8080`
-5. 用默认管理员账号登录并修改密码
+4. 确认浏览器可访问 `http://localhost:51880`
+5. 如果 Windows 弹出防火墙提示，选择允许访问
+6. 用默认管理员账号登录并修改密码
 
 ## 升级建议
 
-1. 执行 `停止 Aurora.bat`
-2. 执行 `备份数据.bat`
-3. 用新版本覆盖以下内容：
-   - `app/`
-   - `config/`
-   - `*.bat`
-   - `首次使用说明.txt`
-4. 保留原有：
-   - `data/`
-   - `logs/`
-5. 再执行 `启动 Aurora.bat`
+更适合现场人员的升级方式是“新包解压到新目录，再把旧数据库复制到新包里”。
+
+1. 在旧版本目录执行 `停止 Aurora.bat`
+2. 确认旧版本数据库文件存在：`data/aurora.db`
+3. 将新版本解压到一个新的目录，例如 `D:\Aurora-New`
+4. 将旧版本的 `data/aurora.db` 复制到新版本目录，覆盖新版本里的同名文件
+5. 如果现场改过配置，再检查是否需要同步 `config/application.yaml`
+6. 在新版本目录执行 `启动 Aurora.bat`
+7. 浏览器访问 `http://localhost:51880`，确认登录和数据正常
+8. 确认新版本运行正常后，再删除旧版本目录
 
 ## 故障排查
 
@@ -137,7 +137,7 @@ config/application.yaml
 
 ### 浏览器打不开
 - 执行 `查看状态.bat`
-- 确认 8080 端口未被其他程序占用
+- 确认 51880 端口未被其他程序占用
 - 检查 Windows 防火墙是否限制访问
 
 ### 数据库无法备份

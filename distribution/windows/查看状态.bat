@@ -6,7 +6,7 @@ cd /d "%ROOT_DIR%"
 
 set "RUN_DIR=%ROOT_DIR%run"
 set "PID_FILE=%RUN_DIR%\aurora.pid"
-set "PORT=8080"
+set "PORT=51880"
 
 if exist "%PID_FILE%" (
   set /p TARGET_PID=<"%PID_FILE%"

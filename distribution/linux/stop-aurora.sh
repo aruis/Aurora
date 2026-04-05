@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$ROOT_DIR/run/aurora.pid"
-PORT=8080
+PORT=51880
 
 stop_pid() {
   local pid="${1:-}"

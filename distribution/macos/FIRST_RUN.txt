@@ -3,7 +3,7 @@ Aurora macOS 绿色包使用说明
 1. 将整个 Aurora 目录解压到本地，例如 ~/Applications/Aurora
 2. 建议将 macOS Java 21 运行时解压到 app/runtime/
 3. 双击 start-aurora.command，或在终端执行 ./start-aurora.command
-4. 浏览器打开 http://localhost:8080
+4. 浏览器打开 http://localhost:51880
 
 常用命令
 - 启动系统：./start-aurora.command

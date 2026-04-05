@@ -11,7 +11,7 @@ RUN_DIR="$ROOT_DIR/run"
 PID_FILE="$RUN_DIR/aurora.pid"
 JAR_FILE="$APP_DIR/aurora.jar"
 JAVA_EXE="$APP_DIR/runtime/bin/java"
-PORT=8080
+PORT=51880
 
 mkdir -p "$DATA_DIR" "$BACKUP_DIR" "$LOG_DIR" "$RUN_DIR"
 

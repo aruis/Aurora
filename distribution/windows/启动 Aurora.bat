@@ -13,7 +13,7 @@ set "RUN_DIR=%ROOT_DIR%run"
 set "PID_FILE=%RUN_DIR%\aurora.pid"
 set "JAVA_EXE=%APP_DIR%\runtime\bin\java.exe"
 set "JAR_FILE=%APP_DIR%\aurora.jar"
-set "PORT=8080"
+set "PORT=51880"
 set "ACCESS_URL=http://localhost:%PORT%"
 set "STARTED_PID="
 

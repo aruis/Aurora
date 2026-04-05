@@ -31,7 +31,7 @@ parent_pid() {
 discover_backend_pid() {
   local pid=""
 
-  pid="$(port_pid 8080)"
+  pid="$(port_pid 51880)"
   if [[ -n "$pid" ]]; then
     echo "$pid"
     return
@@ -221,7 +221,7 @@ cleanup() {
 
 trap cleanup INT TERM EXIT
 
-echo "[backend] 启动 Spring Boot: http://localhost:8080"
+echo "[backend] 启动 Spring Boot: http://localhost:51880"
 (cd "$ROOT_DIR" && ./gradlew bootRun) &
 BACKEND_PID=$!
 
