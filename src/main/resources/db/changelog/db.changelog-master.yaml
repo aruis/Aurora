@@ -11,3 +11,15 @@ databaseChangeLog:
       sqlFile:
         path: db/changelog/sql/002-project-ledger-upgrade.sql
         relativeToChangelogFile: false
+  - changeSet:
+      id: 003-operation-log
+      author: codex
+      sqlFile:
+        path: db/changelog/sql/003-operation-log.sql
+        relativeToChangelogFile: false
+  - changeSet:
+      id: 004-project-change-history
+      author: codex
+      sqlFile:
+        path: db/changelog/sql/004-project-change-history.sql
+        relativeToChangelogFile: false

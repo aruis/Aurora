@@ -39,7 +39,7 @@ public class ProjectController {
 
 	@GetMapping("/{id}")
 	@PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER', 'FINANCE')")
-	public ProjectSummary get(@PathVariable Long id) {
+	public ProjectDetailResponse get(@PathVariable Long id) {
 		return projectService.get(id);
 	}
 

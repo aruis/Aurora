@@ -1,4 +1,4 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
 import {
@@ -40,6 +40,7 @@ import {
   getPaymentInvoiceOptions,
   getPayments,
   getProject,
+  updateProject,
   updateInvoice,
   updatePayment,
   type InvoicePayload,
@@ -47,12 +48,27 @@ import {
   type PaymentInvoiceOption,
   type PaymentPayload,
   type PaymentRecord,
+  type ProjectFormValues,
 } from '@/modules/projects/api'
 
 type InvoiceFormValues = {
   amount: number
   invoiceDate: Dayjs
   invoiceNo: string
+}
+
+type ProjectEditorValues = {
+  name: string
+  customer: string
+  contractNo: string
+  signingDate: Dayjs
+  contractAmount: number
+  responsibleDepartment?: string
+  undertakingUnit: string
+  category: string
+  contractPeriod?: string
+  paymentMethod?: string
+  remark?: string
 }
 
 type PaymentFormValues = {
@@ -71,8 +87,10 @@ export function ProjectDetailPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [messageApi, contextHolder] = message.useMessage()
+  const [projectForm] = Form.useForm<ProjectEditorValues>()
   const [invoiceForm] = Form.useForm<InvoiceFormValues>()
   const [paymentForm] = Form.useForm<PaymentFormValues>()
+  const [projectEditorOpen, setProjectEditorOpen] = useState(false)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null)
@@ -119,6 +137,14 @@ export function ProjectDetailPage() {
       setInvoiceOpen(false)
       setEditingInvoice(null)
       invoiceForm.resetFields()
+      await refreshProjectRelated()
+    },
+  })
+  const projectMutation = useMutation({
+    mutationFn: async (payload: ProjectFormValues) => updateProject(resolvedProjectId, payload),
+    onSuccess: async () => {
+      messageApi.success('项目已更新')
+      setProjectEditorOpen(false)
       await refreshProjectRelated()
     },
   })
@@ -253,6 +279,7 @@ export function ProjectDetailPage() {
   }
 
   const project = projectQuery.data
+  const projectInfo = project?.project
   const paymentInvoiceOptions = paymentInvoiceOptionsQuery.data ?? []
 
   return (
@@ -260,32 +287,63 @@ export function ProjectDetailPage() {
       {contextHolder}
       <PageHeader
         eyebrow="Project Detail"
-        title={project?.name ?? '项目详情'}
+        title={projectInfo?.name ?? '项目详情'}
         description="围绕合同执行台账查看项目基础信息、挂帐欠款状态，以及开票回款记录。"
+        extra={(
+          <Space>
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => {
+                if (!projectInfo) {
+                  return
+                }
+                projectForm.setFieldsValue({
+                  name: projectInfo.name,
+                  customer: projectInfo.customer,
+                  contractNo: projectInfo.contractNo,
+                  signingDate: dayjs(projectInfo.signingDate),
+                  contractAmount: Number(projectInfo.contractAmount),
+                  responsibleDepartment: projectInfo.responsibleDepartment ?? undefined,
+                  undertakingUnit: projectInfo.undertakingUnit,
+                  category: projectInfo.category,
+                  contractPeriod: projectInfo.contractPeriod ?? undefined,
+                  paymentMethod: projectInfo.paymentMethod ?? undefined,
+                  remark: projectInfo.remark ?? undefined,
+                })
+                setProjectEditorOpen(true)
+              }}
+            >
+              编辑
+            </Button>
+            <Button icon={<HistoryOutlined />} onClick={() => navigate(`/projects/${resolvedProjectId}/changes`)}>
+              变更历史
+            </Button>
+          </Space>
+        )}
       />
 
       <PageSection title="项目概览" subtitle="先看资金状态，再核对台账核心字段。">
         <div className="detail-overview">
           <div className="detail-kpis">
-            <KpiCard label="合同金额" value={formatKpiCurrency(project?.contractAmount)} variant="primary" />
-            <KpiCard label="挂帐金额" value={formatKpiCurrency(project?.accrualAmount)} variant="warning" />
-            <KpiCard label="欠款金额" value={formatKpiCurrency(project?.arrearsAmount)} variant="danger" />
-            <KpiCard label="回款进度" value={formatPercent(project?.paymentProgress)} variant="success" />
+            <KpiCard label="合同金额" value={formatKpiCurrency(projectInfo?.contractAmount)} variant="primary" />
+            <KpiCard label="挂帐金额" value={formatKpiCurrency(projectInfo?.accrualAmount)} variant="warning" />
+            <KpiCard label="欠款金额" value={formatKpiCurrency(projectInfo?.arrearsAmount)} variant="danger" />
+            <KpiCard label="回款进度" value={formatPercent(projectInfo?.paymentProgress)} variant="success" />
           </div>
           <Descriptions
             column={{ xs: 1, sm: 2, xl: 3 }}
             items={[
-              { key: 'customer', label: '委托单位', children: project?.customer },
-              { key: 'responsibleDepartment', label: '责任部门', children: renderOptionalText(project?.responsibleDepartment) },
-              { key: 'undertakingUnit', label: '承接单位', children: renderOptionalText(project?.undertakingUnit) },
-              { key: 'category', label: '类别', children: renderOptionalText(project?.category) },
-              { key: 'contractNo', label: '合同号', children: project?.contractNo },
-              { key: 'signingDate', label: '签订日期', children: formatDate(project?.signingDate) },
-              { key: 'contractPeriod', label: '合同工期', children: renderOptionalText(project?.contractPeriod) },
-              { key: 'paymentMethod', label: '付款方式', children: renderOptionalText(project?.paymentMethod) },
-              { key: 'invoiceAmount', label: '累计开票', children: formatCurrency(project?.invoicedAmount) },
-              { key: 'paymentAmount', label: '累计回款', children: formatCurrency(project?.receivedAmount) },
-              { key: 'remark', label: '备注', children: renderOptionalText(project?.remark) },
+              { key: 'customer', label: '委托单位', children: projectInfo?.customer },
+              { key: 'responsibleDepartment', label: '责任部门', children: renderOptionalText(projectInfo?.responsibleDepartment) },
+              { key: 'undertakingUnit', label: '承接单位', children: renderOptionalText(projectInfo?.undertakingUnit) },
+              { key: 'category', label: '类别', children: renderOptionalText(projectInfo?.category) },
+              { key: 'contractNo', label: '合同号', children: projectInfo?.contractNo },
+              { key: 'signingDate', label: '签订日期', children: formatDate(projectInfo?.signingDate) },
+              { key: 'contractPeriod', label: '合同工期', children: renderOptionalText(projectInfo?.contractPeriod) },
+              { key: 'paymentMethod', label: '付款方式', children: renderOptionalText(projectInfo?.paymentMethod) },
+              { key: 'invoiceAmount', label: '累计开票', children: formatCurrency(projectInfo?.invoicedAmount) },
+              { key: 'paymentAmount', label: '累计回款', children: formatCurrency(projectInfo?.receivedAmount) },
+              { key: 'remark', label: '备注', children: renderOptionalText(projectInfo?.remark) },
             ]}
           />
         </div>
@@ -389,6 +447,110 @@ export function ProjectDetailPage() {
           </PageSection>
         </Col>
       </Row>
+
+      <Modal
+        title="编辑项目"
+        open={projectEditorOpen}
+        onCancel={() => setProjectEditorOpen(false)}
+        onOk={() => projectForm.submit()}
+        confirmLoading={projectMutation.isPending}
+        width={860}
+        destroyOnHidden
+      >
+        <Form<ProjectEditorValues>
+          form={projectForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            try {
+              await projectMutation.mutateAsync({
+                ...values,
+                signingDate: values.signingDate.format('YYYY-MM-DD'),
+                responsibleDepartment: values.responsibleDepartment?.trim(),
+                contractPeriod: values.contractPeriod?.trim(),
+                paymentMethod: values.paymentMethod?.trim(),
+                remark: values.remark?.trim(),
+                customer: values.customer.trim(),
+                contractNo: values.contractNo.trim(),
+                name: values.name.trim(),
+              })
+            }
+            catch (error) {
+              if (!applyFormErrors(projectForm, error) && isApiError(error)) {
+                messageApi.error(error.message)
+              }
+            }
+          }}
+        >
+          <Row gutter={[16, 4]}>
+            <Col xs={24} md={12}>
+              <Form.Item label="项目名称" name="name" rules={[{ required: true, message: '请输入项目名称' }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="委托单位" name="customer" rules={[{ required: true, message: '请输入委托单位' }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="责任部门" name="responsibleDepartment">
+                <Input placeholder="可选填" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="承接单位" name="undertakingUnit" rules={[{ required: true, message: '请选择承接单位' }]}>
+                <Select
+                  options={[
+                    { label: '五队', value: '五队' },
+                    { label: '二勘院', value: '二勘院' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="类别" name="category" rules={[{ required: true, message: '请选择类别' }]}>
+                <Select
+                  options={[
+                    { label: '市场项目', value: '市场项目' },
+                    { label: '平台公司', value: '平台公司' },
+                    { label: '政府财政', value: '政府财政' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="合同号" name="contractNo" rules={[{ required: true, message: '请输入合同号' }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="签订日期" name="signingDate" rules={[{ required: true, message: '请选择签订日期' }]}>
+                <LocalizedDatePicker style={{ width: '100%' }} placeholder="请选择签订日期" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="合同金额" name="contractAmount" rules={[{ required: true, message: '请输入合同金额' }]}>
+                <CurrencyInputNumber />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="合同工期" name="contractPeriod">
+                <Input placeholder="例如：12个月 / 90天" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="付款方式" name="paymentMethod">
+                <Input placeholder="例如：验收后一次性付款" />
+              </Form.Item>
+            </Col>
+            <Col xs={24}>
+              <Form.Item label="备注" name="remark">
+                <Input.TextArea rows={4} placeholder="补充录入关键信息" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
 
       <Modal
         title={editingInvoice ? '编辑开票' : '新增开票'}

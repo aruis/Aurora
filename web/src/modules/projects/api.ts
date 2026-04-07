@@ -20,6 +20,21 @@ export type ProjectSummary = {
   paymentProgress: number
 }
 
+export type ProjectChangeRecord = {
+  id: number
+  summary: string
+  detail: string
+  operatorId: number
+  operatorUsername: string
+  operatorDisplayName: string
+  createdAt: string
+}
+
+export type ProjectDetail = {
+  project: ProjectSummary
+  changes: ProjectChangeRecord[]
+}
+
 export type ProjectFormValues = {
   name: string
   customer: string
@@ -86,7 +101,7 @@ export async function getProjects(filters: ProjectFilters) {
 }
 
 export async function getProject(projectId: number) {
-  const { data } = await http.get<ProjectSummary>(`/api/projects/${projectId}`)
+  const { data } = await http.get<ProjectDetail>(`/api/projects/${projectId}`)
   return data
 }
 

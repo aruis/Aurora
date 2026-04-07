@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
 import net.ximatai.aurora.common.BusinessException;
+import net.ximatai.aurora.operationlog.OperationLogService;
 
 @Service
 @Transactional
@@ -17,11 +18,14 @@ public class PaymentService {
 	private final PaymentRepository paymentRepository;
 	private final ProjectRepository projectRepository;
 	private final InvoiceRepository invoiceRepository;
+	private final OperationLogService operationLogService;
 
-	public PaymentService(PaymentRepository paymentRepository, ProjectRepository projectRepository, InvoiceRepository invoiceRepository) {
+	public PaymentService(PaymentRepository paymentRepository, ProjectRepository projectRepository, InvoiceRepository invoiceRepository,
+		OperationLogService operationLogService) {
 		this.paymentRepository = paymentRepository;
 		this.projectRepository = projectRepository;
 		this.invoiceRepository = invoiceRepository;
+		this.operationLogService = operationLogService;
 	}
 
 	@Transactional(readOnly = true)
@@ -50,7 +54,10 @@ public class PaymentService {
 		payment.setInvoice(invoice);
 		payment.setAmount(request.amount());
 		payment.setPaymentDate(request.paymentDate());
-		return PaymentResponse.from(paymentRepository.save(payment));
+		Payment savedPayment = paymentRepository.save(payment);
+		operationLogService.log("回款管理", "新增回款", "回款", String.valueOf(savedPayment.getId()),
+			String.valueOf(savedPayment.getId()), buildPaymentDetail(project, invoice, request.amount()));
+		return PaymentResponse.from(savedPayment);
 	}
 
 	public PaymentResponse update(Long projectId, Long paymentId, PaymentRequest request) {
@@ -61,6 +68,8 @@ public class PaymentService {
 		payment.setInvoice(invoice);
 		payment.setAmount(request.amount());
 		payment.setPaymentDate(request.paymentDate());
+		operationLogService.log("回款管理", "编辑回款", "回款", String.valueOf(payment.getId()),
+			String.valueOf(payment.getId()), buildPaymentDetail(payment.getProject(), invoice, request.amount()));
 		return PaymentResponse.from(payment);
 	}
 
@@ -68,6 +77,8 @@ public class PaymentService {
 		ensureProjectExists(projectId);
 		Payment payment = findPayment(projectId, paymentId);
 		paymentRepository.delete(payment);
+		operationLogService.log("回款管理", "删除回款", "回款", String.valueOf(payment.getId()),
+			String.valueOf(payment.getId()), buildPaymentDetail(payment.getProject(), payment.getInvoice(), payment.getAmount()));
 	}
 
 	private Project ensureProjectExists(Long projectId) {
@@ -110,5 +121,11 @@ public class PaymentService {
 			unsettledAmount = BigDecimal.ZERO;
 		}
 		return new PaymentInvoiceOption(row.invoiceId(), row.invoiceNo(), row.invoiceDate(), row.invoiceAmount(), row.paidAmount(), unsettledAmount);
+	}
+
+	private String buildPaymentDetail(Project project, Invoice invoice, BigDecimal amount) {
+		return "项目=" + project.getName()
+			+ "，金额=" + amount
+			+ (invoice == null ? "，未关联发票" : "，发票=" + invoice.getInvoiceNo());
 	}
 }

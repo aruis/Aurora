@@ -85,3 +85,11 @@ export function formatDate(value: string | null | undefined) {
 
   return dayjs(value).format('YYYY-MM-DD')
 }
+
+export function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return '--'
+  }
+
+  return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
+}

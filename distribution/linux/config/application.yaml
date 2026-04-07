@@ -34,6 +34,8 @@ app:
   admin:
     bootstrap-password: admin123
     reset-on-startup: false
+  operation-log:
+    retention-days: 30
   cors:
     allowed-origins:
       - http://localhost:51889

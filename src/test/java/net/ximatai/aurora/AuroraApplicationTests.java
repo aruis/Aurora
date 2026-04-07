@@ -12,6 +12,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,8 @@ class AuroraApplicationTests {
 
 	@BeforeEach
 	void cleanData() {
+		jdbcTemplate.update("DELETE FROM operation_logs");
+		jdbcTemplate.update("DELETE FROM project_changes");
 		jdbcTemplate.update("DELETE FROM invoices");
 		jdbcTemplate.update("DELETE FROM payments");
 		jdbcTemplate.update("DELETE FROM projects");
@@ -218,11 +222,11 @@ class AuroraApplicationTests {
 
 		mockMvc.perform(get("/api/projects/{id}", projectId).session(adminSession))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.invoicedAmount").value(1200))
-			.andExpect(jsonPath("$.receivedAmount").value(500))
-			.andExpect(jsonPath("$.accrualAmount").value(700))
-			.andExpect(jsonPath("$.arrearsAmount").value(8388.88))
-			.andExpect(jsonPath("$.paymentProgress").value(0.0563));
+			.andExpect(jsonPath("$.project.invoicedAmount").value(1200))
+			.andExpect(jsonPath("$.project.receivedAmount").value(500))
+			.andExpect(jsonPath("$.project.accrualAmount").value(700))
+			.andExpect(jsonPath("$.project.arrearsAmount").value(8388.88))
+			.andExpect(jsonPath("$.project.paymentProgress").value(0.0563));
 
 		mockMvc.perform(delete("/api/projects/{id}", projectId).session(adminSession))
 			.andExpect(status().isConflict())
@@ -234,7 +238,7 @@ class AuroraApplicationTests {
 
 		mockMvc.perform(get("/api/projects/{id}", projectId).session(adminSession))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.receivedAmount").value(0));
+			.andExpect(jsonPath("$.project.receivedAmount").value(0));
 
 		mockMvc.perform(delete("/api/projects/{projectId}/invoices/{invoiceId}", projectId, invoiceId)
 				.session(adminSession))
@@ -644,6 +648,81 @@ class AuroraApplicationTests {
 			.andExpect(jsonPath("$.summary.paymentTotal").value(0))
 			.andExpect(jsonPath("$.summary.projectCount").value(0))
 			.andExpect(jsonPath("$.projects.length()").value(0));
+	}
+
+	@Test
+	void operationLogsAreVisibleToAdminOnlyAndLimitedToRetentionWindow() throws Exception {
+		createUser("finance-auditor", "123456", "财务审阅", true, Set.of(RoleCode.FINANCE));
+		MockHttpSession adminSession = login("admin", "admin123");
+		MockHttpSession financeSession = login("finance-auditor", "123456");
+
+		createProject(adminSession);
+
+		jdbcTemplate.update("""
+			INSERT INTO operation_logs (
+			  module_name, action_name, target_type, target_id, target_name, detail,
+			  operator_id, operator_username, operator_display_name, operator_roles,
+			  ip_address, request_method, request_path, success, operated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			""",
+			"测试模块", "过期操作", "项目", "999", "过期项目", "这是一条过期日志",
+			1L, "admin", "管理员", "ADMIN", "127.0.0.1", "POST", "/api/test", true,
+			LocalDateTime.now().minusDays(60).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+
+		mockMvc.perform(get("/api/operation-logs").session(financeSession))
+			.andExpect(status().isForbidden());
+
+		mockMvc.perform(get("/api/operation-logs").session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.retentionDays").value(30))
+			.andExpect(content().string(not(containsString("过期操作"))));
+	}
+
+	@Test
+	void projectDetailReturnsImmutableChangeHistoryAfterUpdate() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		Long projectId = createProject(adminSession);
+
+		mockMvc.perform(put("/api/projects/{id}", projectId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "name":"Aurora 新项目",
+					  "customer":"更新后的客户",
+					  "contractNo":"HT-2026-001-A",
+					  "signingDate":"2026-04-09",
+					  "contractAmount":9999.99,
+					  "responsibleDepartment":"经营部",
+					  "undertakingUnit":"二勘院",
+					  "category":"平台公司",
+					  "contractPeriod":"180天",
+					  "paymentMethod":"分期付款",
+					  "remark":"补充说明"
+					}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.name").value("Aurora 新项目"));
+
+		mockMvc.perform(get("/api/projects/{id}", projectId).session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.project.name").value("Aurora 新项目"))
+			.andExpect(jsonPath("$.changes.length()").value(1))
+			.andExpect(jsonPath("$.changes[0].operatorUsername").value("admin"))
+			.andExpect(jsonPath("$.changes[0].summary").value("更新了 11 项内容"))
+			.andExpect(jsonPath("$.changes[0].detail").value(containsString("项目名称：Aurora 项目 -> Aurora 新项目")))
+			.andExpect(jsonPath("$.changes[0].detail").value(containsString("承接单位：五队 -> 二勘院")))
+			.andExpect(jsonPath("$.changes[0].detail").value(containsString("备注：空 -> 补充说明")));
+
+		mockMvc.perform(get("/api/operation-logs")
+				.session(adminSession)
+				.param("moduleName", "项目管理")
+				.param("actionName", "编辑项目"))
+			.andExpect(status().isOk())
+			.andExpect(content().string(not(containsString("编辑项目"))));
+
+		mockMvc.perform(delete("/api/projects/{id}", projectId).session(adminSession))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.message").value("项目已产生变更流水，不能删除"));
 	}
 
 	private MockHttpSession login(String username, String password) throws Exception {

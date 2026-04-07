@@ -3,6 +3,7 @@ import {
   KeyOutlined,
   DashboardOutlined,
   FolderOpenOutlined,
+  FileTextOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -25,7 +26,9 @@ const breadcrumbNameMap: Record<string, string> = {
   dashboard: '仪表盘',
   'finance-stats': '数据统计',
   projects: '项目管理',
+  changes: '项目变更记录',
   users: '用户管理',
+  'operation-logs': '操作日志',
 }
 
 export function AppShell() {
@@ -39,7 +42,10 @@ export function AppShell() {
     { key: '/finance-stats', icon: <BarChartOutlined />, label: <Link to="/finance-stats">数据统计</Link> },
     { key: '/projects', icon: <FolderOpenOutlined />, label: <Link to="/projects">项目管理</Link> },
     ...(user?.roles.includes('ADMIN')
-      ? [{ key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> }]
+      ? [
+          { key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> },
+          { key: '/operation-logs', icon: <FileTextOutlined />, label: <Link to="/operation-logs">操作日志</Link> },
+        ]
       : []),
   ]
   const [messageApi, contextHolder] = message.useMessage()
@@ -78,13 +84,11 @@ export function AppShell() {
     return pathSnippets.map((segment, index) => {
       const isLast = index === pathSnippets.length - 1
       const href = `/${pathSnippets.slice(0, index + 1).join('/')}`
-      const label
-        = isLast && /^\d+$/.test(segment)
-          ? `项目 #${segment}`
-          : breadcrumbNameMap[segment] ?? segment
+      const isProjectIdSegment = /^\d+$/.test(segment) && pathSnippets[index - 1] === 'projects'
+      const label = isProjectIdSegment ? `项目 #${segment}` : (breadcrumbNameMap[segment] ?? segment)
 
       return {
-        title: !isLast && !/^\d+$/.test(segment) ? <Link to={href}>{label}</Link> : label,
+        title: !isLast ? <Link to={href}>{label}</Link> : label,
       }
     })
   }, [pathSnippets])

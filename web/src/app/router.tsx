@@ -7,6 +7,8 @@ import { AppShell } from '@/layout/app-shell'
 import { DashboardPage } from '@/pages/dashboard-page'
 import { FinanceStatsPage } from '@/pages/finance-stats-page'
 import { LoginPage } from '@/pages/login-page'
+import { OperationLogPage } from '@/pages/operation-log-page'
+import { ProjectChangeHistoryPage } from '@/pages/project-change-history-page'
 import { ProjectDetailPage } from '@/pages/project-detail-page'
 import { ProjectListPage } from '@/pages/project-list-page'
 import { UserManagementPage } from '@/pages/user-management-page'
@@ -37,7 +39,9 @@ export function AppRouter() {
             <Route path="finance-stats" element={<FinanceStatsPage />} />
             <Route path="projects" element={<ProjectListPage />} />
             <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+            <Route path="projects/:projectId/changes" element={<ProjectChangeHistoryPage />} />
             <Route path="users" element={<UserManagementPage />} />
+            <Route path="operation-logs" element={<OperationLogPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
