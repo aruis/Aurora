@@ -13,6 +13,22 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 	boolean existsByProjectId(Long projectId);
 
 	@Query("""
+		select new net.ximatai.aurora.project.PaymentInvoiceOptionRow(
+			i.id,
+			i.invoiceNo,
+			i.invoiceDate,
+			i.amount,
+			coalesce(sum(pay.amount), 0)
+		)
+		from Invoice i
+		left join Payment pay on pay.invoice = i
+		where i.project.id = :projectId
+		group by i.id, i.invoiceNo, i.invoiceDate, i.amount
+		order by i.invoiceDate desc, i.id desc
+		""")
+	List<PaymentInvoiceOptionRow> summarizePaymentOptionsByProject(Long projectId);
+
+	@Query("""
 		select new net.ximatai.aurora.project.FinanceStatsProjectAmountRow(
 			p.id,
 			p.name,

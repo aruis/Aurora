@@ -34,6 +34,9 @@ public class Invoice {
 	@Column(name = "invoice_date", nullable = false)
 	private LocalDate invoiceDate;
 
+	@Column(name = "invoice_no", nullable = false)
+	private String invoiceNo;
+
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
 
@@ -78,5 +81,13 @@ public class Invoice {
 
 	public void setInvoiceDate(LocalDate invoiceDate) {
 		this.invoiceDate = invoiceDate;
+	}
+
+	public String getInvoiceNo() {
+		return invoiceNo;
+	}
+
+	public void setInvoiceNo(String invoiceNo) {
+		this.invoiceNo = invoiceNo;
 	}
 }

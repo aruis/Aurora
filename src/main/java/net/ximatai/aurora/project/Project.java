@@ -36,6 +36,24 @@ public class Project {
 	@Column(name = "contract_amount", nullable = false, precision = 18, scale = 2)
 	private BigDecimal contractAmount;
 
+	@Column(name = "responsible_department")
+	private String responsibleDepartment;
+
+	@Column(name = "undertaking_unit")
+	private String undertakingUnit;
+
+	@Column(name = "category")
+	private String category;
+
+	@Column(name = "contract_period")
+	private String contractPeriod;
+
+	@Column(name = "payment_method")
+	private String paymentMethod;
+
+	@Column(name = "remark", length = 1000)
+	private String remark;
+
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
 
@@ -96,5 +114,53 @@ public class Project {
 
 	public void setContractAmount(BigDecimal contractAmount) {
 		this.contractAmount = contractAmount;
+	}
+
+	public String getResponsibleDepartment() {
+		return responsibleDepartment;
+	}
+
+	public void setResponsibleDepartment(String responsibleDepartment) {
+		this.responsibleDepartment = responsibleDepartment;
+	}
+
+	public String getUndertakingUnit() {
+		return undertakingUnit;
+	}
+
+	public void setUndertakingUnit(String undertakingUnit) {
+		this.undertakingUnit = undertakingUnit;
+	}
+
+	public String getCategory() {
+		return category;
+	}
+
+	public void setCategory(String category) {
+		this.category = category;
+	}
+
+	public String getContractPeriod() {
+		return contractPeriod;
+	}
+
+	public void setContractPeriod(String contractPeriod) {
+		this.contractPeriod = contractPeriod;
+	}
+
+	public String getPaymentMethod() {
+		return paymentMethod;
+	}
+
+	public void setPaymentMethod(String paymentMethod) {
+		this.paymentMethod = paymentMethod;
+	}
+
+	public String getRemark() {
+		return remark;
+	}
+
+	public void setRemark(String remark) {
+		this.remark = remark;
 	}
 }

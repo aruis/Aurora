@@ -8,9 +8,11 @@ import {
   Descriptions,
   Empty,
   Form,
+  Input,
   Modal,
   Popconfirm,
   Row,
+  Select,
   Space,
   Table,
   Typography,
@@ -35,12 +37,14 @@ import {
   deleteInvoice,
   deletePayment,
   getInvoices,
+  getPaymentInvoiceOptions,
   getPayments,
   getProject,
   updateInvoice,
   updatePayment,
   type InvoicePayload,
   type InvoiceRecord,
+  type PaymentInvoiceOption,
   type PaymentPayload,
   type PaymentRecord,
 } from '@/modules/projects/api'
@@ -48,11 +52,13 @@ import {
 type InvoiceFormValues = {
   amount: number
   invoiceDate: Dayjs
+  invoiceNo: string
 }
 
 type PaymentFormValues = {
   amount: number
   paymentDate: Dayjs
+  invoiceId?: number
 }
 
 function compareDateValue(left: string, right: string) {
@@ -87,6 +93,11 @@ export function ProjectDetailPage() {
     queryFn: () => getPayments(resolvedProjectId),
     enabled: Number.isFinite(resolvedProjectId),
   })
+  const paymentInvoiceOptionsQuery = useQuery({
+    queryKey: ['projects.payment-invoice-options', resolvedProjectId, editingPayment?.id ?? 'new'],
+    queryFn: () => getPaymentInvoiceOptions(resolvedProjectId, editingPayment?.id ?? undefined),
+    enabled: Number.isFinite(resolvedProjectId) && paymentOpen,
+  })
 
   const refreshProjectRelated = async () => {
     await Promise.all([
@@ -94,6 +105,7 @@ export function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['projects.list'] }),
       queryClient.invalidateQueries({ queryKey: ['projects.invoices', resolvedProjectId] }),
       queryClient.invalidateQueries({ queryKey: ['projects.payments', resolvedProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['projects.payment-invoice-options', resolvedProjectId] }),
     ])
   }
 
@@ -132,6 +144,7 @@ export function ProjectDetailPage() {
       sorter: (a, b) => compareDateValue(a.invoiceDate, b.invoiceDate),
       defaultSortOrder: 'ascend',
     },
+    { title: '发票号', dataIndex: 'invoiceNo' },
     { title: '开票金额', dataIndex: 'amount', align: 'right', render: formatCurrency },
     {
       title: '操作',
@@ -146,6 +159,7 @@ export function ProjectDetailPage() {
               invoiceForm.setFieldsValue({
                 amount: Number(record.amount),
                 invoiceDate: dayjs(record.invoiceDate),
+                invoiceNo: record.invoiceNo,
               })
             }}
           >
@@ -183,6 +197,7 @@ export function ProjectDetailPage() {
       sorter: (a, b) => compareDateValue(a.paymentDate, b.paymentDate),
       defaultSortOrder: 'ascend',
     },
+    { title: '发票号', dataIndex: 'invoiceNo', render: renderOptionalText },
     { title: '回款金额', dataIndex: 'amount', align: 'right', render: formatCurrency },
     {
       title: '操作',
@@ -197,6 +212,7 @@ export function ProjectDetailPage() {
               paymentForm.setFieldsValue({
                 amount: Number(record.amount),
                 paymentDate: dayjs(record.paymentDate),
+                invoiceId: record.invoiceId ?? undefined,
               })
             }}
           >
@@ -237,6 +253,7 @@ export function ProjectDetailPage() {
   }
 
   const project = projectQuery.data
+  const paymentInvoiceOptions = paymentInvoiceOptionsQuery.data ?? []
 
   return (
     <div className="page-stack">
@@ -244,24 +261,31 @@ export function ProjectDetailPage() {
       <PageHeader
         eyebrow="Project Detail"
         title={project?.name ?? '项目详情'}
-        description="查看项目核心信息，以及项目下的开票和回款明细。"
+        description="围绕合同执行台账查看项目基础信息、挂帐欠款状态，以及开票回款记录。"
       />
 
-      <PageSection title="项目概览" subtitle="先看资金状态，再核对项目基础信息。">
+      <PageSection title="项目概览" subtitle="先看资金状态，再核对台账核心字段。">
         <div className="detail-overview">
           <div className="detail-kpis">
-            <KpiCard label="合同金额" value={formatCurrency(project?.contractAmount)} variant="primary" />
-            <KpiCard label="累计开票" value={formatCurrency(project?.invoicedAmount)} variant="warning" />
-            <KpiCard label="累计回款" value={formatCurrency(project?.receivedAmount)} variant="success" />
+            <KpiCard label="合同金额" value={formatKpiCurrency(project?.contractAmount)} variant="primary" />
+            <KpiCard label="挂帐金额" value={formatKpiCurrency(project?.accrualAmount)} variant="warning" />
+            <KpiCard label="欠款金额" value={formatKpiCurrency(project?.arrearsAmount)} variant="danger" />
+            <KpiCard label="回款进度" value={formatPercent(project?.paymentProgress)} variant="success" />
           </div>
           <Descriptions
             column={{ xs: 1, sm: 2, xl: 3 }}
             items={[
-              { key: 'customer', label: '客户', children: project?.customer },
+              { key: 'customer', label: '委托单位', children: project?.customer },
+              { key: 'responsibleDepartment', label: '责任部门', children: renderOptionalText(project?.responsibleDepartment) },
+              { key: 'undertakingUnit', label: '承接单位', children: renderOptionalText(project?.undertakingUnit) },
+              { key: 'category', label: '类别', children: renderOptionalText(project?.category) },
               { key: 'contractNo', label: '合同号', children: project?.contractNo },
-              { key: 'signingDate', label: '签约日期', children: formatDate(project?.signingDate) },
-              { key: 'invoiceAmount', label: '开票完成度', children: getRateText(project?.invoicedAmount, project?.contractAmount) },
-              { key: 'paymentAmount', label: '回款转化率', children: getRateText(project?.receivedAmount, project?.invoicedAmount) },
+              { key: 'signingDate', label: '签订日期', children: formatDate(project?.signingDate) },
+              { key: 'contractPeriod', label: '合同工期', children: renderOptionalText(project?.contractPeriod) },
+              { key: 'paymentMethod', label: '付款方式', children: renderOptionalText(project?.paymentMethod) },
+              { key: 'invoiceAmount', label: '累计开票', children: formatCurrency(project?.invoicedAmount) },
+              { key: 'paymentAmount', label: '累计回款', children: formatCurrency(project?.receivedAmount) },
+              { key: 'remark', label: '备注', children: renderOptionalText(project?.remark) },
             ]}
           />
         </div>
@@ -271,8 +295,8 @@ export function ProjectDetailPage() {
         <Col xs={24} xl={12}>
           <PageSection
             title="开票记录"
-            subtitle="记录项目已开票金额与日期，便于核对合同执行进度。"
-            extra={
+            subtitle="记录发票号、开票时间和金额，后续回款会按发票进行关联。"
+            extra={(
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -284,7 +308,7 @@ export function ProjectDetailPage() {
               >
                 新增开票
               </Button>
-            }
+            )}
           >
             <div className="table-frame">
               <Table
@@ -301,12 +325,13 @@ export function ProjectDetailPage() {
                           <Table.Summary.Cell index={0}>
                             <Typography.Text strong>合计</Typography.Text>
                           </Table.Summary.Cell>
-                          <Table.Summary.Cell index={1} align="right">
+                          <Table.Summary.Cell index={1} />
+                          <Table.Summary.Cell index={2} align="right">
                             <Typography.Text strong>
                               {formatCurrency(records.reduce((sum, item) => sum + Number(item.amount), 0))}
                             </Typography.Text>
                           </Table.Summary.Cell>
-                          <Table.Summary.Cell index={2} />
+                          <Table.Summary.Cell index={3} />
                         </Table.Summary.Row>
                       )
                     : null
@@ -318,8 +343,8 @@ export function ProjectDetailPage() {
         <Col xs={24} xl={12}>
           <PageSection
             title="回款记录"
-            subtitle="追踪到账节奏，及时识别待回款项目。"
-            extra={
+            subtitle="按发票跟踪回款节奏，只展示本项目下可选的未结清发票。"
+            extra={(
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -331,7 +356,7 @@ export function ProjectDetailPage() {
               >
                 新增回款
               </Button>
-            }
+            )}
           >
             <div className="table-frame">
               <Table
@@ -348,12 +373,13 @@ export function ProjectDetailPage() {
                           <Table.Summary.Cell index={0}>
                             <Typography.Text strong>合计</Typography.Text>
                           </Table.Summary.Cell>
-                          <Table.Summary.Cell index={1} align="right">
+                          <Table.Summary.Cell index={1} />
+                          <Table.Summary.Cell index={2} align="right">
                             <Typography.Text strong>
                               {formatCurrency(records.reduce((sum, item) => sum + Number(item.amount), 0))}
                             </Typography.Text>
                           </Table.Summary.Cell>
-                          <Table.Summary.Cell index={2} />
+                          <Table.Summary.Cell index={3} />
                         </Table.Summary.Row>
                       )
                     : null
@@ -383,6 +409,7 @@ export function ProjectDetailPage() {
               await invoiceMutation.mutateAsync({
                 amount: values.amount,
                 invoiceDate: values.invoiceDate.format('YYYY-MM-DD'),
+                invoiceNo: values.invoiceNo.trim(),
               })
             }
             catch (error) {
@@ -392,14 +419,14 @@ export function ProjectDetailPage() {
             }
           }}
         >
+          <Form.Item label="发票号" name="invoiceNo" rules={[{ required: true, message: '请输入发票号' }]}>
+            <Input />
+          </Form.Item>
           <Form.Item label="开票金额" name="amount" rules={[{ required: true, message: '请输入开票金额' }]}>
             <CurrencyInputNumber />
           </Form.Item>
           <Form.Item label="开票日期" name="invoiceDate" rules={[{ required: true, message: '请选择开票日期' }]}>
-            <LocalizedDatePicker
-              style={{ width: '100%' }}
-              placeholder="请选择开票日期"
-            />
+            <LocalizedDatePicker style={{ width: '100%' }} placeholder="请选择开票日期" />
           </Form.Item>
         </Form>
       </Modal>
@@ -423,6 +450,7 @@ export function ProjectDetailPage() {
               await paymentMutation.mutateAsync({
                 amount: values.amount,
                 paymentDate: values.paymentDate.format('YYYY-MM-DD'),
+                invoiceId: values.invoiceId,
               })
             }
             catch (error) {
@@ -432,14 +460,40 @@ export function ProjectDetailPage() {
             }
           }}
         >
+          <Form.Item label="发票号" name="invoiceId">
+            <Select
+              loading={paymentInvoiceOptionsQuery.isLoading}
+              placeholder="可不选发票号"
+              allowClear
+              options={paymentInvoiceOptions.map((option) => ({
+                value: option.invoiceId,
+                label: option.invoiceNo,
+                option,
+              }))}
+              optionRender={(option) => {
+                const invoiceOption = option.data.option as PaymentInvoiceOption
+                return (
+                  <div className="invoice-option">
+                    <div className="invoice-option__top">
+                      <span className="invoice-option__no">{invoiceOption.invoiceNo}</span>
+                      <span className="invoice-option__badge">
+                        未结 {formatCurrency(invoiceOption.unsettledAmount)}
+                      </span>
+                    </div>
+                    <div className="invoice-option__meta">
+                      <span>{formatDate(invoiceOption.invoiceDate)}</span>
+                      <span>开票 {formatCurrency(invoiceOption.invoiceAmount)}</span>
+                    </div>
+                  </div>
+                )
+              }}
+            />
+          </Form.Item>
           <Form.Item label="回款金额" name="amount" rules={[{ required: true, message: '请输入回款金额' }]}>
             <CurrencyInputNumber />
           </Form.Item>
           <Form.Item label="回款日期" name="paymentDate" rules={[{ required: true, message: '请选择回款日期' }]}>
-            <LocalizedDatePicker
-              style={{ width: '100%' }}
-              placeholder="请选择回款日期"
-            />
+            <LocalizedDatePicker style={{ width: '100%' }} placeholder="请选择回款日期" />
           </Form.Item>
         </Form>
       </Modal>
@@ -447,7 +501,7 @@ export function ProjectDetailPage() {
   )
 }
 
-function KpiCard(props: { label: string; value: string; variant: 'primary' | 'warning' | 'success' }) {
+function KpiCard(props: { label: string; value: string; variant: 'primary' | 'warning' | 'success' | 'danger' }) {
   return (
     <div className={`detail-kpi detail-kpi--${props.variant}`}>
       <span className="detail-kpi__label">{props.label}</span>
@@ -458,13 +512,15 @@ function KpiCard(props: { label: string; value: string; variant: 'primary' | 'wa
   )
 }
 
-function getRateText(numerator?: number | string, denominator?: number | string) {
-  const resolvedNumerator = Number(numerator ?? 0)
-  const resolvedDenominator = Number(denominator ?? 0)
+function formatPercent(value?: number | string) {
+  const resolved = Number(value ?? 0)
+  return `${(resolved * 100).toFixed(1)}%`
+}
 
-  if (resolvedDenominator <= 0) {
-    return '0.0%'
-  }
+function formatKpiCurrency(value?: number | string) {
+  return formatCurrency(value).replace('¥', '')
+}
 
-  return `${((resolvedNumerator / resolvedDenominator) * 100).toFixed(1)}%`
+function renderOptionalText(value?: string | null) {
+  return value || '--'
 }

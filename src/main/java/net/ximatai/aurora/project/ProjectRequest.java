@@ -18,6 +18,14 @@ public record ProjectRequest(
 	LocalDate signingDate,
 	@NotNull(message = "合同金额不能为空")
 	@DecimalMin(value = "0.01", message = "合同金额必须大于0")
-	BigDecimal contractAmount
+	BigDecimal contractAmount,
+	String responsibleDepartment,
+	@NotBlank(message = "承接单位不能为空")
+	String undertakingUnit,
+	@NotBlank(message = "类别不能为空")
+	String category,
+	String contractPeriod,
+	String paymentMethod,
+	String remark
 ) {
 }

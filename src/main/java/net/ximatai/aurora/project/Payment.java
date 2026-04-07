@@ -28,6 +28,10 @@ public class Payment {
 	@JoinColumn(name = "project_id", nullable = false)
 	private Project project;
 
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "invoice_id")
+	private Invoice invoice;
+
 	@Column(nullable = false, precision = 18, scale = 2)
 	private BigDecimal amount;
 
@@ -62,6 +66,14 @@ public class Payment {
 
 	public void setProject(Project project) {
 		this.project = project;
+	}
+
+	public Invoice getInvoice() {
+		return invoice;
+	}
+
+	public void setInvoice(Invoice invoice) {
+		this.invoice = invoice;
 	}
 
 	public BigDecimal getAmount() {

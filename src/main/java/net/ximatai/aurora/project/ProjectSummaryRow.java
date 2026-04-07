@@ -3,7 +3,7 @@ package net.ximatai.aurora.project;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record ProjectSummary(
+public record ProjectSummaryRow(
 	Long id,
 	String name,
 	String customer,
@@ -17,9 +17,6 @@ public record ProjectSummary(
 	String paymentMethod,
 	String remark,
 	BigDecimal invoicedAmount,
-	BigDecimal receivedAmount,
-	BigDecimal accrualAmount,
-	BigDecimal arrearsAmount,
-	BigDecimal paymentProgress
+	BigDecimal receivedAmount
 ) {
 }

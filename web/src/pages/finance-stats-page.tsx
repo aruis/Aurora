@@ -61,14 +61,14 @@ export function FinanceStatsPage() {
       dataIndex: 'projectName',
       render: (_, record) => <Link to={`/projects/${record.projectId}`}>{record.projectName}</Link>,
     },
-    { title: '客户', dataIndex: 'customer' },
+    { title: '委托单位', dataIndex: 'customer' },
     { title: '合同号', dataIndex: 'contractNo' },
     { title: '区间内开票', dataIndex: 'invoiceAmount', align: 'right', render: formatCurrency },
     { title: '区间内回款', dataIndex: 'paymentAmount', align: 'right', render: formatCurrency },
   ]
   const exportRows = projects.map((project) => ({
     项目名称: project.projectName,
-    客户: project.customer,
+    委托单位: project.customer,
     合同号: project.contractNo,
     区间内开票: formatCurrency(project.invoiceAmount),
     区间内回款: formatCurrency(project.paymentAmount),
@@ -159,7 +159,7 @@ export function FinanceStatsPage() {
                   filename: `数据统计-${startDate}-${endDate}.csv`,
                   columns: [
                     { title: '项目名称', render: (row) => row.项目名称 },
-                    { title: '客户', render: (row) => row.客户 },
+                    { title: '委托单位', render: (row) => row.委托单位 },
                     { title: '合同号', render: (row) => row.合同号 },
                     { title: '区间内开票', render: (row) => row.区间内开票 },
                     { title: '区间内回款', render: (row) => row.区间内回款 },

@@ -30,6 +30,11 @@ public class PaymentController {
 		return paymentService.list(projectId);
 	}
 
+	@GetMapping("/invoice-options")
+	public List<PaymentInvoiceOption> listInvoiceOptions(@PathVariable Long projectId, @org.springframework.web.bind.annotation.RequestParam(required = false) Long paymentId) {
+		return paymentService.listInvoiceOptions(projectId, paymentId);
+	}
+
 	@PostMapping
 	public PaymentResponse create(@PathVariable Long projectId, @Valid @RequestBody PaymentRequest request) {
 		return paymentService.create(projectId, request);

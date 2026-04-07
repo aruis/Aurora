@@ -1,7 +1,7 @@
 import { DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Button, Col, Form, Input, Modal, Popconfirm, Row, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Button, Col, Form, Input, Modal, Popconfirm, Row, Select, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
@@ -27,15 +27,33 @@ import {
   type ProjectSummary,
 } from '@/modules/projects/api'
 
+const undertakingUnitOptions = [
+  { label: '五队', value: '五队' },
+  { label: '二勘院', value: '二勘院' },
+]
+
+const categoryOptions = [
+  { label: '市场项目', value: '市场项目' },
+  { label: '平台公司', value: '平台公司' },
+  { label: '政府财政', value: '政府财政' },
+]
+
 type SearchFormValues = Omit<ProjectFilters, 'signingDateStart' | 'signingDateEnd'> & {
   signingDateRange?: [Dayjs, Dayjs]
 }
+
 type ProjectEditorValues = {
   name: string
   customer: string
   contractNo: string
   signingDate: Dayjs
   contractAmount: number
+  responsibleDepartment?: string
+  undertakingUnit: string
+  category: string
+  contractPeriod?: string
+  paymentMethod?: string
+  remark?: string
 }
 
 export function ProjectListPage() {
@@ -77,22 +95,32 @@ export function ProjectListPage() {
   const contractTotal = projects.reduce((sum, item) => sum + Number(item.contractAmount), 0)
   const invoiceTotal = projects.reduce((sum, item) => sum + Number(item.invoicedAmount), 0)
   const paymentTotal = projects.reduce((sum, item) => sum + Number(item.receivedAmount), 0)
+  const arrearsTotal = projects.reduce((sum, item) => sum + Number(item.arrearsAmount), 0)
 
   const columns: ColumnsType<ProjectSummary> = [
     {
       title: '项目名称',
       dataIndex: 'name',
+      fixed: 'left',
+      width: 180,
       render: (value, record) => <Link to={`/projects/${record.id}`}>{value}</Link>,
     },
-    { title: '客户', dataIndex: 'customer' },
-    { title: '合同号', dataIndex: 'contractNo' },
-    { title: '签约日期', dataIndex: 'signingDate', render: formatDate },
-    { title: '合同金额', dataIndex: 'contractAmount', align: 'right', render: formatCurrency },
-    { title: '累计开票', dataIndex: 'invoicedAmount', align: 'right', render: formatCurrency },
-    { title: '累计回款', dataIndex: 'receivedAmount', align: 'right', render: formatCurrency },
+    { title: '委托单位', dataIndex: 'customer', width: 160 },
+    { title: '责任部门', dataIndex: 'responsibleDepartment', width: 140, render: renderOptionalText },
+    { title: '承接单位', dataIndex: 'undertakingUnit', width: 120 },
+    { title: '类别', dataIndex: 'category', width: 120 },
+    { title: '合同号', dataIndex: 'contractNo', width: 150 },
+    { title: '签订日期', dataIndex: 'signingDate', width: 120, render: formatDate },
+    { title: '合同金额', dataIndex: 'contractAmount', width: 130, align: 'right', render: formatCurrency },
+    { title: '累计开票', dataIndex: 'invoicedAmount', width: 130, align: 'right', render: formatCurrency },
+    { title: '累计回款', dataIndex: 'receivedAmount', width: 130, align: 'right', render: formatCurrency },
+    { title: '挂帐金额', dataIndex: 'accrualAmount', width: 130, align: 'right', render: formatCurrency },
+    { title: '欠款金额', dataIndex: 'arrearsAmount', width: 130, align: 'right', render: formatCurrency },
+    { title: '回款进度', dataIndex: 'paymentProgress', width: 120, align: 'right', render: formatPercent },
     {
       title: '操作',
       key: 'actions',
+      fixed: 'right',
       width: 156,
       render: (_, record) => (
         <Space size={6}>
@@ -118,6 +146,12 @@ export function ProjectListPage() {
                   contractNo: record.contractNo,
                   signingDate: dayjs(record.signingDate),
                   contractAmount: Number(record.contractAmount),
+                  responsibleDepartment: record.responsibleDepartment ?? undefined,
+                  undertakingUnit: record.undertakingUnit,
+                  category: record.category,
+                  contractPeriod: record.contractPeriod ?? undefined,
+                  paymentMethod: record.paymentMethod ?? undefined,
+                  remark: record.remark ?? undefined,
                 })
               }}
             />
@@ -137,12 +171,7 @@ export function ProjectListPage() {
             }}
           >
             <Tooltip title="删除项目">
-              <Button
-                type="text"
-                danger
-                aria-label={`删除 ${record.name}`}
-                icon={<DeleteOutlined />}
-              />
+              <Button type="text" danger aria-label={`删除 ${record.name}`} icon={<DeleteOutlined />} />
             </Tooltip>
           </Popconfirm>
         </Space>
@@ -152,12 +181,21 @@ export function ProjectListPage() {
 
   const exportRows = projects.map((project) => ({
     项目名称: project.name,
-    客户: project.customer,
+    委托单位: project.customer,
+    责任部门: project.responsibleDepartment ?? '',
+    承接单位: project.undertakingUnit,
+    类别: project.category,
     合同号: project.contractNo,
-    签约日期: formatDate(project.signingDate),
+    签订日期: formatDate(project.signingDate),
+    合同工期: project.contractPeriod ?? '',
+    付款方式: project.paymentMethod ?? '',
     合同金额: formatCurrency(project.contractAmount),
     累计开票: formatCurrency(project.invoicedAmount),
     累计回款: formatCurrency(project.receivedAmount),
+    挂帐金额: formatCurrency(project.accrualAmount),
+    欠款金额: formatCurrency(project.arrearsAmount),
+    回款进度: formatPercent(project.paymentProgress),
+    备注: project.remark ?? '',
   }))
 
   return (
@@ -166,8 +204,8 @@ export function ProjectListPage() {
       <PageHeader
         eyebrow="Projects"
         title="项目管理"
-        description="集中维护项目基础信息、合同台账以及项目级别的开票与回款汇总。"
-        extra={
+        description="集中维护合同执行台账，让项目基础信息、资金状态和关键备注保持在同一工作面板里。"
+        extra={(
           <Button
             type="primary"
             size="large"
@@ -180,7 +218,7 @@ export function ProjectListPage() {
           >
             新建项目
           </Button>
-        }
+        )}
       />
 
       <div className="summary-strip">
@@ -188,9 +226,10 @@ export function ProjectListPage() {
         <SummaryChip label="合同总额" value={formatCurrency(contractTotal)} />
         <SummaryChip label="累计开票" value={formatCurrency(invoiceTotal)} />
         <SummaryChip label="累计回款" value={formatCurrency(paymentTotal)} />
+        <SummaryChip label="欠款总额" value={formatCurrency(arrearsTotal)} />
       </div>
 
-      <PageSection title="筛选条件" subtitle="按项目名称、客户和合同号快速定位目标记录。" muted>
+      <PageSection title="筛选条件" subtitle="按项目名称、委托单位和合同号快速定位目标记录。" muted>
         <Form<SearchFormValues>
           form={searchForm}
           layout="vertical"
@@ -211,8 +250,8 @@ export function ProjectListPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12} xl={8}>
-              <Form.Item label="客户名称" name="customer">
-                <Input placeholder="输入客户名称" allowClear />
+              <Form.Item label="委托单位" name="customer">
+                <Input placeholder="输入委托单位" allowClear />
               </Form.Item>
             </Col>
             <Col xs={24} md={12} xl={8}>
@@ -221,7 +260,7 @@ export function ProjectListPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12} xl={8}>
-              <Form.Item label="签约日期" name="signingDateRange">
+              <Form.Item label="签订日期" name="signingDateRange">
                 <LocalizedRangePicker style={{ width: '100%' }} allowClear />
               </Form.Item>
             </Col>
@@ -244,26 +283,19 @@ export function ProjectListPage() {
 
       <PageSection
         title="项目列表"
-        subtitle="支持直接进入详情、编辑或删除，优先保留高频操作。"
+        subtitle="重点展示更接近真实台账的字段，双击即可进入详情页继续处理。"
         extra={(
           <div className="table-section-extra">
-            <Typography.Text type="secondary">
-              当前显示 {projects.length} 条记录
-            </Typography.Text>
+            <Typography.Text type="secondary">当前显示 {projects.length} 条记录</Typography.Text>
             <Button
               icon={<DownloadOutlined />}
               onClick={() => {
                 downloadCsv({
                   filename: `项目管理-${new Date().toISOString().slice(0, 10)}.csv`,
-                  columns: [
-                    { title: '项目名称', render: (row) => row.项目名称 },
-                    { title: '客户', render: (row) => row.客户 },
-                    { title: '合同号', render: (row) => row.合同号 },
-                    { title: '签约日期', render: (row) => row.签约日期 },
-                    { title: '合同金额', render: (row) => row.合同金额 },
-                    { title: '累计开票', render: (row) => row.累计开票 },
-                    { title: '累计回款', render: (row) => row.累计回款 },
-                  ],
+                  columns: Object.keys(exportRows[0] ?? { 项目名称: '' }).map((title) => ({
+                    title,
+                    render: (row: Record<string, string>) => row[title],
+                  })),
                   rows: exportRows,
                 })
               }}
@@ -283,7 +315,7 @@ export function ProjectListPage() {
             onRow={(record) => ({
               onDoubleClick: () => navigate(`/projects/${record.id}`),
             })}
-            scroll={{ x: 980 }}
+            scroll={{ x: 1800 }}
             pagination={buildTablePagination()}
           />
         </div>
@@ -298,7 +330,7 @@ export function ProjectListPage() {
         }}
         onOk={() => editorForm.submit()}
         confirmLoading={saveMutation.isPending}
-        width={680}
+        width={860}
         destroyOnHidden
       >
         <Form<ProjectEditorValues>
@@ -309,6 +341,13 @@ export function ProjectListPage() {
               await saveMutation.mutateAsync({
                 ...values,
                 signingDate: values.signingDate.format('YYYY-MM-DD'),
+                responsibleDepartment: values.responsibleDepartment?.trim(),
+                contractPeriod: values.contractPeriod?.trim(),
+                paymentMethod: values.paymentMethod?.trim(),
+                remark: values.remark?.trim(),
+                customer: values.customer.trim(),
+                contractNo: values.contractNo.trim(),
+                name: values.name.trim(),
               })
             }
             catch (error) {
@@ -325,8 +364,23 @@ export function ProjectListPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="客户名称" name="customer" rules={[{ required: true, message: '请输入客户名称' }]}>
+              <Form.Item label="委托单位" name="customer" rules={[{ required: true, message: '请输入委托单位' }]}>
                 <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="责任部门" name="responsibleDepartment">
+                <Input placeholder="可选填" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="承接单位" name="undertakingUnit" rules={[{ required: true, message: '请选择承接单位' }]}>
+                <Select options={undertakingUnitOptions} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="类别" name="category" rules={[{ required: true, message: '请选择类别' }]}>
+                <Select options={categoryOptions} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
@@ -335,16 +389,28 @@ export function ProjectListPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="签约日期" name="signingDate" rules={[{ required: true, message: '请选择签约日期' }]}>
-                <LocalizedDatePicker
-                  style={{ width: '100%' }}
-                  placeholder="请选择签约日期"
-                />
+              <Form.Item label="签订日期" name="signingDate" rules={[{ required: true, message: '请选择签订日期' }]}>
+                <LocalizedDatePicker style={{ width: '100%' }} placeholder="请选择签订日期" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="合同金额" name="contractAmount" rules={[{ required: true, message: '请输入合同金额' }]}>
+                <CurrencyInputNumber />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="合同工期" name="contractPeriod">
+                <Input placeholder="例如：12个月 / 90天" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="付款方式" name="paymentMethod">
+                <Input placeholder="例如：验收后一次性付款" />
               </Form.Item>
             </Col>
             <Col xs={24}>
-              <Form.Item label="合同金额" name="contractAmount" rules={[{ required: true, message: '请输入合同金额' }]}>
-                <CurrencyInputNumber />
+              <Form.Item label="备注" name="remark">
+                <Input.TextArea rows={4} placeholder="补充录入关键信息" />
               </Form.Item>
             </Col>
           </Row>
@@ -365,4 +431,13 @@ function SummaryChip(props: { label: string; value: string }) {
       </Typography.Text>
     </div>
   )
+}
+
+function formatPercent(value: number | string | null | undefined) {
+  const resolved = Number(value ?? 0)
+  return `${(resolved * 100).toFixed(1)}%`
+}
+
+function renderOptionalText(value?: string | null) {
+  return value || '--'
 }

@@ -7,8 +7,17 @@ export type ProjectSummary = {
   contractNo: string
   signingDate: string
   contractAmount: number
+  responsibleDepartment?: string | null
+  undertakingUnit: string
+  category: string
+  contractPeriod?: string | null
+  paymentMethod?: string | null
+  remark?: string | null
   invoicedAmount: number
   receivedAmount: number
+  accrualAmount: number
+  arrearsAmount: number
+  paymentProgress: number
 }
 
 export type ProjectFormValues = {
@@ -17,6 +26,12 @@ export type ProjectFormValues = {
   contractNo: string
   signingDate: string
   contractAmount: number
+  responsibleDepartment?: string
+  undertakingUnit: string
+  category: string
+  contractPeriod?: string
+  paymentMethod?: string
+  remark?: string
 }
 
 export type ProjectFilters = {
@@ -32,6 +47,7 @@ export type InvoiceRecord = {
   projectId: number
   amount: number
   invoiceDate: string
+  invoiceNo: string
 }
 
 export type PaymentRecord = {
@@ -39,16 +55,29 @@ export type PaymentRecord = {
   projectId: number
   amount: number
   paymentDate: string
+  invoiceId: number | null
+  invoiceNo: string | null
 }
 
 export type InvoicePayload = {
   amount: number
   invoiceDate: string
+  invoiceNo: string
 }
 
 export type PaymentPayload = {
   amount: number
   paymentDate: string
+  invoiceId?: number | null
+}
+
+export type PaymentInvoiceOption = {
+  invoiceId: number
+  invoiceNo: string
+  invoiceDate: string
+  invoiceAmount: number
+  paidAmount: number
+  unsettledAmount: number
 }
 
 export async function getProjects(filters: ProjectFilters) {
@@ -96,6 +125,13 @@ export async function deleteInvoice(projectId: number, invoiceId: number) {
 
 export async function getPayments(projectId: number) {
   const { data } = await http.get<PaymentRecord[]>(`/api/projects/${projectId}/payments`)
+  return data
+}
+
+export async function getPaymentInvoiceOptions(projectId: number, paymentId?: number) {
+  const { data } = await http.get<PaymentInvoiceOption[]>(`/api/projects/${projectId}/payments/invoice-options`, {
+    params: paymentId ? { paymentId } : undefined,
+  })
   return data
 }
 

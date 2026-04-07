@@ -5,3 +5,9 @@ databaseChangeLog:
       sqlFile:
         path: db/changelog/sql/001-init-schema.sql
         relativeToChangelogFile: false
+  - changeSet:
+      id: 002-project-ledger-upgrade
+      author: codex
+      sqlFile:
+        path: db/changelog/sql/002-project-ledger-upgrade.sql
+        relativeToChangelogFile: false

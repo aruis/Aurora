@@ -10,13 +10,19 @@ import org.springframework.data.jpa.repository.Query;
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
 	@Query("""
-		select new net.ximatai.aurora.project.ProjectSummary(
+		select new net.ximatai.aurora.project.ProjectSummaryRow(
 			p.id,
 			p.name,
 			p.customer,
 			p.contractNo,
 			p.signingDate,
 			p.contractAmount,
+			p.responsibleDepartment,
+			p.undertakingUnit,
+			p.category,
+			p.contractPeriod,
+			p.paymentMethod,
+			p.remark,
 			coalesce((select sum(i.amount) from Invoice i where i.project = p), 0),
 			coalesce((select sum(pay.amount) from Payment pay where pay.project = p), 0)
 		)
@@ -28,21 +34,27 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 		  and (:signingDateEnd is null or p.signingDate <= :signingDateEnd)
 		order by p.id desc
 		""")
-	List<ProjectSummary> search(String name, String customer, String contractNo, LocalDate signingDateStart, LocalDate signingDateEnd);
+	List<ProjectSummaryRow> search(String name, String customer, String contractNo, LocalDate signingDateStart, LocalDate signingDateEnd);
 
 	@Query("""
-		select new net.ximatai.aurora.project.ProjectSummary(
+		select new net.ximatai.aurora.project.ProjectSummaryRow(
 			p.id,
 			p.name,
 			p.customer,
 			p.contractNo,
 			p.signingDate,
 			p.contractAmount,
+			p.responsibleDepartment,
+			p.undertakingUnit,
+			p.category,
+			p.contractPeriod,
+			p.paymentMethod,
+			p.remark,
 			coalesce((select sum(i.amount) from Invoice i where i.project = p), 0),
 			coalesce((select sum(pay.amount) from Payment pay where pay.project = p), 0)
 		)
 		from Project p
 		where p.id = :id
 		""")
-	ProjectSummary findSummaryById(Long id);
+	ProjectSummaryRow findSummaryById(Long id);
 }

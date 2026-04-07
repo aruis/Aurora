@@ -176,7 +176,9 @@ class AuroraApplicationTests {
 					  "customer":"客户A",
 					  "contractNo":"HT-001",
 					  "signingDate":"2026-04-03",
-					  "contractAmount":1000
+					  "contractAmount":1000,
+					  "undertakingUnit":"五队",
+					  "category":"市场项目"
 					}
 					"""))
 			.andExpect(status().isForbidden());
@@ -188,34 +190,39 @@ class AuroraApplicationTests {
 		Long projectId = createProject(adminSession);
 
 		Long invoiceId = createInvoice(adminSession, projectId, """
-			{"amount":1000,"invoiceDate":"2026-04-04"}
+			{"amount":1000,"invoiceDate":"2026-04-04","invoiceNo":"FP-001"}
 			""");
 		Long paymentId = createPayment(adminSession, projectId, """
-			{"amount":300,"paymentDate":"2026-04-05"}
-			""");
+			{"amount":300,"paymentDate":"2026-04-05","invoiceId":%d}
+			""".formatted(invoiceId));
 
 		mockMvc.perform(put("/api/projects/{projectId}/invoices/{invoiceId}", projectId, invoiceId)
 				.session(adminSession)
 				.contentType(APPLICATION_JSON)
 				.content("""
-					{"amount":1200,"invoiceDate":"2026-04-06"}
+					{"amount":1200,"invoiceDate":"2026-04-06","invoiceNo":"FP-001-A"}
 					"""))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.amount").value(1200));
+			.andExpect(jsonPath("$.amount").value(1200))
+			.andExpect(jsonPath("$.invoiceNo").value("FP-001-A"));
 
 		mockMvc.perform(put("/api/projects/{projectId}/payments/{paymentId}", projectId, paymentId)
 				.session(adminSession)
 				.contentType(APPLICATION_JSON)
 				.content("""
-					{"amount":500,"paymentDate":"2026-04-07"}
-					"""))
+					{"amount":500,"paymentDate":"2026-04-07","invoiceId":%d}
+					""".formatted(invoiceId)))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.amount").value(500));
+				.andExpect(jsonPath("$.amount").value(500))
+				.andExpect(jsonPath("$.invoiceNo").value("FP-001-A"));
 
 		mockMvc.perform(get("/api/projects/{id}", projectId).session(adminSession))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.invoicedAmount").value(1200))
-			.andExpect(jsonPath("$.receivedAmount").value(500));
+			.andExpect(jsonPath("$.receivedAmount").value(500))
+			.andExpect(jsonPath("$.accrualAmount").value(700))
+			.andExpect(jsonPath("$.arrearsAmount").value(8388.88))
+			.andExpect(jsonPath("$.paymentProgress").value(0.0563));
 
 		mockMvc.perform(delete("/api/projects/{id}", projectId).session(adminSession))
 			.andExpect(status().isConflict())
@@ -250,7 +257,9 @@ class AuroraApplicationTests {
 			  "customer":"示例客户B",
 			  "contractNo":"HT-2026-002",
 			  "signingDate":"2026-04-08",
-			  "contractAmount":6666.00
+			  "contractAmount":6666.00,
+			  "undertakingUnit":"五队",
+			  "category":"市场项目"
 			}
 			""");
 		Long projectC = createProject(adminSession, """
@@ -259,21 +268,26 @@ class AuroraApplicationTests {
 			  "customer":"示例客户C",
 			  "contractNo":"HT-2026-003",
 			  "signingDate":"2026-04-10",
-			  "contractAmount":9999.00
+			  "contractAmount":9999.00,
+			  "undertakingUnit":"五队",
+			  "category":"市场项目"
 			}
 			""");
 
-		createInvoice(adminSession, projectA, """
-			{"amount":1000,"invoiceDate":"2026-04-05"}
+		Long invoiceA = createInvoice(adminSession, projectA, """
+			{"amount":1000,"invoiceDate":"2026-04-05","invoiceNo":"FP-A-001"}
+			""");
+		Long invoiceB = createInvoice(adminSession, projectB, """
+			{"amount":400,"invoiceDate":"2026-03-31","invoiceNo":"FP-B-001"}
 			""");
 		createPayment(adminSession, projectA, """
-			{"amount":600,"paymentDate":"2026-04-06"}
-			""");
+			{"amount":600,"paymentDate":"2026-04-06","invoiceId":%d}
+			""".formatted(invoiceA));
 		createPayment(adminSession, projectB, """
-			{"amount":300,"paymentDate":"2026-04-07"}
-			""");
+			{"amount":300,"paymentDate":"2026-04-07","invoiceId":%d}
+			""".formatted(invoiceB));
 		createInvoice(adminSession, projectC, """
-			{"amount":800,"invoiceDate":"2026-03-30"}
+			{"amount":800,"invoiceDate":"2026-03-30","invoiceNo":"FP-C-001"}
 			""");
 
 		mockMvc.perform(get("/api/finance-stats")
@@ -336,7 +350,9 @@ class AuroraApplicationTests {
 					  "customer":"",
 					  "contractNo":" ",
 					  "signingDate":null,
-					  "contractAmount":0
+					  "contractAmount":0,
+					  "undertakingUnit":"",
+					  "category":""
 					}
 					"""))
 			.andExpect(status().isBadRequest())
@@ -345,7 +361,9 @@ class AuroraApplicationTests {
 			.andExpect(jsonPath("$.errors.customer").value("客户不能为空"))
 			.andExpect(jsonPath("$.errors.contractNo").value("合同号不能为空"))
 			.andExpect(jsonPath("$.errors.signingDate").value("签约时间不能为空"))
-			.andExpect(jsonPath("$.errors.contractAmount").value("合同金额必须大于0"));
+			.andExpect(jsonPath("$.errors.contractAmount").value("合同金额必须大于0"))
+			.andExpect(jsonPath("$.errors.undertakingUnit").value("承接单位不能为空"))
+			.andExpect(jsonPath("$.errors.category").value("类别不能为空"));
 
 		mockMvc.perform(post("/api/users").session(adminSession)
 				.contentType(APPLICATION_JSON)
@@ -369,12 +387,13 @@ class AuroraApplicationTests {
 		mockMvc.perform(post("/api/projects/{projectId}/invoices", projectId).session(adminSession)
 				.contentType(APPLICATION_JSON)
 				.content("""
-					{"amount":0,"invoiceDate":null}
+					{"amount":0,"invoiceDate":null,"invoiceNo":""}
 					"""))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.message").value("请求参数校验失败"))
 			.andExpect(jsonPath("$.errors.amount").value("开票金额必须大于0"))
-			.andExpect(jsonPath("$.errors.invoiceDate").value("开票时间不能为空"));
+			.andExpect(jsonPath("$.errors.invoiceDate").value("开票时间不能为空"))
+			.andExpect(jsonPath("$.errors.invoiceNo").value("发票号不能为空"));
 	}
 
 	@Test
@@ -458,24 +477,35 @@ class AuroraApplicationTests {
 			  "customer":"测试客户B",
 			  "contractNo":"HT-2026-009",
 			  "signingDate":"2026-04-09",
-			  "contractAmount":2000
+			  "contractAmount":2000,
+			  "undertakingUnit":"五队",
+			  "category":"市场项目"
 			}
 			""");
 		Long invoiceId = createInvoice(adminSession, projectA, """
-			{"amount":500,"invoiceDate":"2026-04-05"}
+			{"amount":500,"invoiceDate":"2026-04-05","invoiceNo":"FP-X-001"}
 			""");
 		Long paymentId = createPayment(adminSession, projectA, """
-			{"amount":300,"paymentDate":"2026-04-06"}
-			""");
+			{"amount":300,"paymentDate":"2026-04-06","invoiceId":%d}
+			""".formatted(invoiceId));
 
 		mockMvc.perform(put("/api/projects/{projectId}/invoices/{invoiceId}", projectB, invoiceId)
 				.session(adminSession)
 				.contentType(APPLICATION_JSON)
 				.content("""
-					{"amount":800,"invoiceDate":"2026-04-10"}
+					{"amount":800,"invoiceDate":"2026-04-10","invoiceNo":"FP-X-002"}
 					"""))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.message").value("开票记录不存在"));
+
+		mockMvc.perform(post("/api/projects/{projectId}/payments", projectB)
+				.session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"amount":100,"paymentDate":"2026-04-10","invoiceId":%d}
+					""".formatted(invoiceId)))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.message").value("发票不存在"));
 
 		mockMvc.perform(delete("/api/projects/{projectId}/payments/{paymentId}", projectB, paymentId)
 				.session(adminSession))
@@ -488,6 +518,90 @@ class AuroraApplicationTests {
 	}
 
 	@Test
+	void projectValidationAndPaymentInvoiceOptionsReflectBusinessRules() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+
+		mockMvc.perform(post("/api/projects").session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "name":"非法项目",
+					  "customer":"客户Z",
+					  "contractNo":"HT-2026-777",
+					  "signingDate":"2026-04-11",
+					  "contractAmount":1000,
+					  "undertakingUnit":"三队",
+					  "category":"未知类别"
+					}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("承接单位不合法"));
+
+		Long projectId = createProject(adminSession);
+		Long invoiceA = createInvoice(adminSession, projectId, """
+			{"amount":1000,"invoiceDate":"2026-04-08","invoiceNo":"FP-OPT-002"}
+			""");
+		Long invoiceB = createInvoice(adminSession, projectId, """
+			{"amount":500,"invoiceDate":"2026-04-05","invoiceNo":"FP-OPT-001"}
+			""");
+		Long paymentId = createPayment(adminSession, projectId, """
+			{"amount":1000,"paymentDate":"2026-04-09","invoiceId":%d}
+			""".formatted(invoiceA));
+
+		mockMvc.perform(get("/api/projects/{projectId}/payments/invoice-options", projectId).session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.length()").value(1))
+			.andExpect(jsonPath("$[0].invoiceId").value(invoiceB))
+			.andExpect(jsonPath("$[0].invoiceNo").value("FP-OPT-001"))
+			.andExpect(jsonPath("$[0].unsettledAmount").value(500));
+
+		mockMvc.perform(get("/api/projects/{projectId}/payments/invoice-options", projectId)
+				.session(adminSession)
+				.param("paymentId", String.valueOf(paymentId)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.length()").value(2))
+			.andExpect(jsonPath("$[0].invoiceId").value(invoiceA))
+			.andExpect(jsonPath("$[0].invoiceNo").value("FP-OPT-002"));
+	}
+
+	@Test
+	void paymentCanSkipInvoiceButCannotExceedInvoiceAmountWhenLinked() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		Long projectId = createProject(adminSession);
+		Long invoiceId = createInvoice(adminSession, projectId, """
+			{"amount":1000,"invoiceDate":"2026-04-08","invoiceNo":"FP-LIMIT-001"}
+			""");
+
+		mockMvc.perform(post("/api/projects/{projectId}/payments", projectId)
+				.session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"amount":200,"paymentDate":"2026-04-08","invoiceId":null}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.invoiceId").isEmpty())
+			.andExpect(jsonPath("$.invoiceNo").isEmpty());
+
+		mockMvc.perform(post("/api/projects/{projectId}/payments", projectId)
+				.session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"amount":700,"paymentDate":"2026-04-09","invoiceId":%d}
+					""".formatted(invoiceId)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.invoiceId").value(invoiceId));
+
+		mockMvc.perform(post("/api/projects/{projectId}/payments", projectId)
+				.session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"amount":400,"paymentDate":"2026-04-10","invoiceId":%d}
+					""".formatted(invoiceId)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("回款金额不能大于发票未结清金额"));
+	}
+
+	@Test
 	void financeStatsAndProjectListHandleEdgeQueries() throws Exception {
 		MockHttpSession adminSession = login("admin", "admin123");
 		Long projectId = createProject(adminSession, """
@@ -496,12 +610,17 @@ class AuroraApplicationTests {
 			  "customer":"星河客户",
 			  "contractNo":"HT-2026-100",
 			  "signingDate":"2026-04-11",
-			  "contractAmount":5200
+			  "contractAmount":5200,
+			  "undertakingUnit":"二勘院",
+			  "category":"平台公司"
 			}
 			""");
-		createPayment(adminSession, projectId, """
-			{"amount":1200,"paymentDate":"2026-04-12"}
+		Long invoiceId = createInvoice(adminSession, projectId, """
+			{"amount":1200,"invoiceDate":"2026-04-11","invoiceNo":"FP-G-001"}
 			""");
+		createPayment(adminSession, projectId, """
+			{"amount":1200,"paymentDate":"2026-04-12","invoiceId":%d}
+			""".formatted(invoiceId));
 
 		mockMvc.perform(get("/api/projects")
 				.session(adminSession)
@@ -512,7 +631,9 @@ class AuroraApplicationTests {
 				.param("signingDateEnd", "2026-04-30"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.length()").value(1))
-			.andExpect(jsonPath("$[0].id").value(projectId));
+			.andExpect(jsonPath("$[0].id").value(projectId))
+			.andExpect(jsonPath("$[0].undertakingUnit").value("二勘院"))
+			.andExpect(jsonPath("$[0].category").value("平台公司"));
 
 		mockMvc.perform(get("/api/finance-stats")
 				.session(adminSession)
@@ -553,7 +674,9 @@ class AuroraApplicationTests {
 			  "customer":"测试客户",
 			  "contractNo":"HT-2026-001",
 			  "signingDate":"2026-04-03",
-			  "contractAmount":8888.88
+			  "contractAmount":8888.88,
+			  "undertakingUnit":"五队",
+			  "category":"市场项目"
 			}
 			""");
 	}

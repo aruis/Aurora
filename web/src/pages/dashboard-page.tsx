@@ -177,9 +177,11 @@ export function DashboardPage() {
                     {project.stats.map((stat) => (
                       <HighlightStat key={stat.label} label={stat.label} value={stat.value} />
                     ))}
-                    <Button type="link" icon={<ArrowRightOutlined />}>
-                      <Link to={`/projects/${project.projectId}`}>查看详情</Link>
-                    </Button>
+                    <div>
+                      <Button type="link" icon={<ArrowRightOutlined />}>
+                        <Link to={`/projects/${project.projectId}`}>查看详情</Link>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -221,7 +223,7 @@ function MetricCard(props: { title: string; value: string | number; icon: ReactN
         <span className="metric-card__icon">{props.icon}</span>
         <div className="metric-card__content">
           {compactValue ? (
-            <Tooltip title={`完整金额 ${compactValue.full}`}>
+            <Tooltip title={compactValue.full}>
               <span className="metric-card__money" aria-label={compactValue.full}>
                 <span className="metric-card__currency">¥</span>
                 <Typography.Text className="metric-card__value" style={{ fontSize }}>
@@ -273,7 +275,7 @@ function mapYearNewProject(project: ProjectSummary): HighlightItem {
   return {
     projectId: project.id,
     name: project.name,
-    subtitle: `${project.customer} · ${project.contractNo} · 签约于 ${project.signingDate}`,
+    subtitle: `${project.customer} · ${project.contractNo}`,
     stats: [
       { label: '合同额', value: formatCurrency(project.contractAmount) },
       { label: '累计开票', value: formatCurrency(project.invoicedAmount) },

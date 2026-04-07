@@ -2,10 +2,12 @@ package net.ximatai.aurora.project;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
+import net.ximatai.aurora.common.BusinessException;
 
 @Service
 @Transactional
@@ -13,10 +15,12 @@ public class InvoiceService {
 
 	private final InvoiceRepository invoiceRepository;
 	private final ProjectRepository projectRepository;
+	private final PaymentRepository paymentRepository;
 
-	public InvoiceService(InvoiceRepository invoiceRepository, ProjectRepository projectRepository) {
+	public InvoiceService(InvoiceRepository invoiceRepository, ProjectRepository projectRepository, PaymentRepository paymentRepository) {
 		this.invoiceRepository = invoiceRepository;
 		this.projectRepository = projectRepository;
+		this.paymentRepository = paymentRepository;
 	}
 
 	@Transactional(readOnly = true)
@@ -31,6 +35,7 @@ public class InvoiceService {
 		invoice.setProject(project);
 		invoice.setAmount(request.amount());
 		invoice.setInvoiceDate(request.invoiceDate());
+		invoice.setInvoiceNo(request.invoiceNo());
 		return InvoiceResponse.from(invoiceRepository.save(invoice));
 	}
 
@@ -42,6 +47,7 @@ public class InvoiceService {
 		}
 		invoice.setAmount(request.amount());
 		invoice.setInvoiceDate(request.invoiceDate());
+		invoice.setInvoiceNo(request.invoiceNo());
 		return InvoiceResponse.from(invoice);
 	}
 
@@ -50,6 +56,9 @@ public class InvoiceService {
 		Invoice invoice = invoiceRepository.findById(invoiceId).orElseThrow(() -> new EntityNotFoundException("开票记录不存在"));
 		if (!invoice.getProject().getId().equals(projectId)) {
 			throw new EntityNotFoundException("开票记录不存在");
+		}
+		if (paymentRepository.existsByInvoiceId(invoiceId)) {
+			throw new BusinessException(HttpStatus.CONFLICT, "开票记录已有关联回款，不能删除");
 		}
 		invoiceRepository.delete(invoice);
 	}

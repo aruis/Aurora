@@ -11,7 +11,8 @@ record PaymentRequest(
 	@DecimalMin(value = "0.01", message = "回款金额必须大于0")
 	BigDecimal amount,
 	@NotNull(message = "回款时间不能为空")
-	LocalDate paymentDate
+	LocalDate paymentDate,
+	Long invoiceId
 ) {
 }
 
@@ -19,10 +20,19 @@ record PaymentResponse(
 	Long id,
 	Long projectId,
 	BigDecimal amount,
-	LocalDate paymentDate
+	LocalDate paymentDate,
+	Long invoiceId,
+	String invoiceNo
 ) {
 
 	public static PaymentResponse from(Payment payment) {
-		return new PaymentResponse(payment.getId(), payment.getProject().getId(), payment.getAmount(), payment.getPaymentDate());
+		return new PaymentResponse(
+			payment.getId(),
+			payment.getProject().getId(),
+			payment.getAmount(),
+			payment.getPaymentDate(),
+			payment.getInvoice() == null ? null : payment.getInvoice().getId(),
+			payment.getInvoice() == null ? null : payment.getInvoice().getInvoiceNo()
+		);
 	}
 }
