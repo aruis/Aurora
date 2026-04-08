@@ -128,8 +128,11 @@ export function DictionaryManagementPage() {
     },
   ]
 
-  const entries = entriesQuery.data ?? []
-  const enabledCount = entries.filter(item => item.enabled).length
+  const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data])
+  const enabledCount = useMemo(
+    () => entries.filter(item => item.enabled).length,
+    [entries],
+  )
   const countsByType = useMemo<Record<DictionaryType, number>>(
     () => ({
       undertaking_unit: entries.filter(item => item.type === 'undertaking_unit').length,
@@ -138,7 +141,10 @@ export function DictionaryManagementPage() {
     [entries],
   )
   const activeTypeMeta = DICTIONARY_TYPE_OPTIONS.find(item => item.value === activeType)
-  const activeEntries = entries.filter(item => item.type === activeType)
+  const activeEntries = useMemo(
+    () => entries.filter(item => item.type === activeType),
+    [activeType, entries],
+  )
 
   return (
     <PermissionGuard roles={['ADMIN']}>
