@@ -163,4 +163,12 @@ public class Project {
 	public void setRemark(String remark) {
 		this.remark = remark;
 	}
+
+	public LocalDateTime getCreatedAt() {
+		return createdAt;
+	}
+
+	public LocalDateTime getUpdatedAt() {
+		return updatedAt;
+	}
 }

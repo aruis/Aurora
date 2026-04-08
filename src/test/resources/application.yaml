@@ -16,6 +16,8 @@ spring:
 app:
   operation-log:
     retention-days: 30
+  project-delete-archive:
+    file: ./build/project-delete-archive-test.log
   cors:
     allowed-origins:
       - http://localhost:5173

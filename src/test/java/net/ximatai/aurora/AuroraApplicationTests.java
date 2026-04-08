@@ -11,7 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Set;
@@ -39,6 +42,7 @@ import net.ximatai.aurora.user.RoleRepository;
 @AutoConfigureMockMvc
 class AuroraApplicationTests {
 
+	private static final Path PROJECT_DELETE_ARCHIVE_PATH = Path.of("build/project-delete-archive-test.log");
 	private static final String UNIT_FIFTH_TEAM = "FIFTH_TEAM";
 	private static final String UNIT_SECOND_SURVEY_INSTITUTE = "SECOND_SURVEY_INSTITUTE";
 	private static final String CATEGORY_MARKET_PROJECT = "MARKET_PROJECT";
@@ -78,6 +82,12 @@ class AuroraApplicationTests {
 		admin.setEnabled(true);
 		admin.setRoles(new java.util.LinkedHashSet<>(roleRepository.findByCodeIn(Set.of(RoleCode.ADMIN))));
 		userRepository.save(admin);
+		try {
+			Files.deleteIfExists(PROJECT_DELETE_ARCHIVE_PATH);
+		}
+		catch (IOException ex) {
+			throw new IllegalStateException("清理项目删除归档日志失败", ex);
+		}
 	}
 
 	@Test
@@ -260,6 +270,59 @@ class AuroraApplicationTests {
 	}
 
 	@Test
+	void referencedDictionaryEntryCannotChangeCodeOrBeDeleted() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		createProject(adminSession, """
+			{
+			  "name":"字典引用项目",
+			  "customer":"客户A",
+			  "contractNo":"HT-DICT-001",
+			  "signingDate":"2026-04-03",
+			  "contractAmount":1000,
+			  "undertakingUnit":"%s",
+			  "category":"%s"
+			}
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
+
+		MvcResult entriesResult = mockMvc.perform(get("/api/dictionaries/admin")
+				.session(adminSession)
+				.param("type", "undertaking_unit"))
+			.andExpect(status().isOk())
+			.andReturn();
+
+		JsonNode entries = objectMapper.readTree(entriesResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+		Long entryId = null;
+		for (JsonNode entry : entries) {
+			if (UNIT_FIFTH_TEAM.equals(entry.get("code").asText())) {
+				entryId = entry.get("id").asLong();
+				break;
+			}
+		}
+
+		if (entryId == null) {
+			throw new IllegalStateException("未找到承接单位字典项: " + UNIT_FIFTH_TEAM);
+		}
+
+		mockMvc.perform(put("/api/dictionaries/{id}", entryId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "type":"undertaking_unit",
+					  "code":"FIFTH_TEAM_V2",
+					  "label":"五队",
+					  "sortOrder":10,
+					  "enabled":true
+					}
+					"""))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.message").value("该字典项已被项目使用，不能修改编码或删除"));
+
+		mockMvc.perform(delete("/api/dictionaries/{id}", entryId).session(adminSession))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.message").value("该字典项已被项目使用，不能修改编码或删除"));
+	}
+
+	@Test
 	void projectAggregatesAndDeleteRulesWork() throws Exception {
 		MockHttpSession adminSession = login("admin", "admin123");
 		Long projectId = createProject(adminSession);
@@ -299,9 +362,11 @@ class AuroraApplicationTests {
 			.andExpect(jsonPath("$.project.arrearsAmount").value(8388.88))
 			.andExpect(jsonPath("$.project.paymentProgress").value(0.0563));
 
-		mockMvc.perform(delete("/api/projects/{id}", projectId).session(adminSession))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.message").value("项目下存在开票或回款记录，不能删除"));
+		mockMvc.perform(get("/api/projects/{id}/delete-check", projectId).session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.requiresStrongConfirmation").value(true))
+			.andExpect(jsonPath("$.hasInvoices").value(true))
+			.andExpect(jsonPath("$.hasPayments").value(true));
 
 		mockMvc.perform(delete("/api/projects/{projectId}/payments/{paymentId}", projectId, paymentId)
 				.session(adminSession))
@@ -839,9 +904,118 @@ class AuroraApplicationTests {
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString("编辑项目")));
 
-		mockMvc.perform(delete("/api/projects/{id}", projectId).session(adminSession))
-			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.message").value("项目已产生变更流水，不能删除"));
+		mockMvc.perform(get("/api/projects/{id}/delete-check", projectId).session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.requiresStrongConfirmation").value(true))
+			.andExpect(jsonPath("$.hasProjectChanges").value(true));
+	}
+
+	@Test
+	void projectDeleteUsesSimpleOrStrongConfirmationDependingOnAssociations() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		Long plainProjectId = createProject(adminSession, """
+			{
+			  "name":"纯项目",
+			  "customer":"客户A",
+			  "contractNo":"HT-DEL-001",
+			  "signingDate":"2026-04-03",
+			  "contractAmount":3000,
+			  "undertakingUnit":"%s",
+			  "category":"%s"
+			}
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
+
+		mockMvc.perform(get("/api/projects/{id}/delete-check", plainProjectId).session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.requiresStrongConfirmation").value(false));
+
+		mockMvc.perform(delete("/api/projects/{id}", plainProjectId).session(adminSession))
+			.andExpect(status().isOk());
+
+		Long riskyProjectId = createProject(adminSession, """
+			{
+			  "name":"高风险项目",
+			  "customer":"客户B",
+			  "contractNo":"HT-DEL-002",
+			  "signingDate":"2026-04-04",
+			  "contractAmount":4000,
+			  "undertakingUnit":"%s",
+			  "category":"%s"
+			}
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
+		Long invoiceId = createInvoice(adminSession, riskyProjectId, """
+			{"amount":1200,"invoiceDate":"2026-04-05","invoiceNo":"FP-DEL-001"}
+			""");
+		createPayment(adminSession, riskyProjectId, """
+			{"amount":600,"paymentDate":"2026-04-06","invoiceId":%d}
+			""".formatted(invoiceId));
+		mockMvc.perform(put("/api/projects/{id}", riskyProjectId)
+				.session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "name":"高风险项目-更新",
+					  "customer":"客户B",
+					  "contractNo":"HT-DEL-002",
+					  "signingDate":"2026-04-04",
+					  "contractAmount":4000,
+					  "undertakingUnit":"%s",
+					  "category":"%s"
+					}
+					""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT)))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/projects/{id}/delete-check", riskyProjectId).session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.requiresStrongConfirmation").value(true))
+			.andExpect(jsonPath("$.hasProjectChanges").value(true))
+			.andExpect(jsonPath("$.hasInvoices").value(true))
+			.andExpect(jsonPath("$.hasPayments").value(true))
+			.andExpect(jsonPath("$.contractNo").value("HT-DEL-002"));
+
+		mockMvc.perform(delete("/api/projects/{id}", riskyProjectId).session(adminSession))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("请输入项目合同号以确认删除"));
+
+		mockMvc.perform(delete("/api/projects/{id}", riskyProjectId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"contractNo":"HT-DEL-002-X","password":"admin123"}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("项目合同号不匹配"));
+
+		mockMvc.perform(delete("/api/projects/{id}", riskyProjectId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"contractNo":"HT-DEL-002","password":"bad-password"}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value("当前登录密码不正确"));
+
+		mockMvc.perform(delete("/api/projects/{id}", riskyProjectId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{"contractNo":"HT-DEL-002","password":"admin123"}
+					"""))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/projects/{id}", riskyProjectId).session(adminSession))
+			.andExpect(status().isNotFound());
+
+		org.junit.jupiter.api.Assertions.assertEquals(0,
+			jdbcTemplate.queryForObject("SELECT COUNT(*) FROM invoices WHERE project_id = ?", Integer.class, riskyProjectId));
+		org.junit.jupiter.api.Assertions.assertEquals(0,
+			jdbcTemplate.queryForObject("SELECT COUNT(*) FROM payments WHERE project_id = ?", Integer.class, riskyProjectId));
+		org.junit.jupiter.api.Assertions.assertEquals(0,
+			jdbcTemplate.queryForObject("SELECT COUNT(*) FROM project_changes WHERE project_id = ?", Integer.class, riskyProjectId));
+
+		String archiveLog = Files.readString(PROJECT_DELETE_ARCHIVE_PATH, StandardCharsets.UTF_8);
+		org.junit.jupiter.api.Assertions.assertTrue(archiveLog.contains("\"archiveId\":\""));
+		org.junit.jupiter.api.Assertions.assertTrue(archiveLog.contains("\"contractNo\":\"HT-DEL-002\""));
+		org.junit.jupiter.api.Assertions.assertTrue(archiveLog.contains("\"strongConfirmationUsed\":true"));
+		org.junit.jupiter.api.Assertions.assertTrue(archiveLog.contains("\"associatedDataSnapshotCounts\":{\"changeCount\":1,\"invoiceCount\":1,\"paymentCount\":1}"));
+		org.junit.jupiter.api.Assertions.assertTrue(archiveLog.contains("\"invoiceNo\":\"FP-DEL-001\""));
 	}
 
 	private MockHttpSession login(String username, String password) throws Exception {

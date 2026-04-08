@@ -48,6 +48,12 @@ public class ProjectController {
 		return projectService.get(id);
 	}
 
+	@GetMapping("/{id}/delete-check")
+	@PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER')")
+	public ProjectDeleteCheckResponse getDeleteCheck(@PathVariable Long id) {
+		return projectService.getDeleteCheck(id);
+	}
+
 	@PostMapping
 	@PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER')")
 	public ProjectSummary create(@Valid @RequestBody ProjectRequest request) {
@@ -62,7 +68,7 @@ public class ProjectController {
 
 	@DeleteMapping("/{id}")
 	@PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER')")
-	public void delete(@PathVariable Long id) {
-		projectService.delete(id);
+	public void delete(@PathVariable Long id, @RequestBody(required = false) ProjectDeleteRequest request) {
+		projectService.delete(id, request);
 	}
 }

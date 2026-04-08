@@ -41,6 +41,8 @@ app:
     reset-on-startup: false
   operation-log:
     retention-days: 30
+  project-delete-archive:
+    file: ./logs/project-delete-archive.log
   cors:
     allowed-origins:
       - http://localhost:5173

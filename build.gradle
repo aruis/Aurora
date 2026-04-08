@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'net.ximatai'
-version = findProperty('releaseVersion') ?: '1.26.1'
+version = findProperty('releaseVersion') ?: '1.26.8'
 
 java {
 	toolchain {

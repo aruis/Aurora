@@ -8,5 +8,7 @@ public interface ProjectChangeRepository extends JpaRepository<ProjectChange, Lo
 
 	List<ProjectChange> findByProjectIdOrderByCreatedAtDescIdDesc(Long projectId);
 
+	void deleteByProjectId(Long projectId);
+
 	boolean existsByProjectId(Long projectId);
 }

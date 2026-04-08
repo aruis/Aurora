@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,15 +30,18 @@ public class ProjectService {
 	private final ProjectChangeRepository projectChangeRepository;
 	private final OperationLogService operationLogService;
 	private final DictionaryService dictionaryService;
+	private final ProjectDeletionService projectDeletionService;
 
 	public ProjectService(ProjectRepository projectRepository, InvoiceRepository invoiceRepository, PaymentRepository paymentRepository,
-		ProjectChangeRepository projectChangeRepository, OperationLogService operationLogService, DictionaryService dictionaryService) {
+		ProjectChangeRepository projectChangeRepository, OperationLogService operationLogService, DictionaryService dictionaryService,
+		ProjectDeletionService projectDeletionService) {
 		this.projectRepository = projectRepository;
 		this.invoiceRepository = invoiceRepository;
 		this.paymentRepository = paymentRepository;
 		this.projectChangeRepository = projectChangeRepository;
 		this.operationLogService = operationLogService;
 		this.dictionaryService = dictionaryService;
+		this.projectDeletionService = projectDeletionService;
 	}
 
 	@Transactional(readOnly = true)
@@ -88,16 +91,13 @@ public class ProjectService {
 		return getSummary(project.getId());
 	}
 
-	public void delete(Long id) {
-		Project project = projectRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("项目不存在"));
-		if (projectChangeRepository.existsByProjectId(id)) {
-			throw new BusinessException(HttpStatus.CONFLICT, "项目已产生变更流水，不能删除");
-		}
-		if (invoiceRepository.existsByProjectId(id) || paymentRepository.existsByProjectId(id)) {
-			throw new BusinessException(HttpStatus.CONFLICT, "项目下存在开票或回款记录，不能删除");
-		}
-		projectRepository.delete(project);
-		operationLogService.log("项目管理", "删除项目", "项目", String.valueOf(project.getId()), project.getName(), "项目已删除");
+	@Transactional(readOnly = true)
+	public ProjectDeleteCheckResponse getDeleteCheck(Long id) {
+		return projectDeletionService.getDeleteCheck(id);
+	}
+
+	public void delete(Long id, ProjectDeleteRequest request) {
+		projectDeletionService.delete(id, request);
 	}
 
 	private void apply(Project project, ProjectRequest request) {

@@ -1,7 +1,7 @@
 import { DeleteOutlined, DownOutlined, EditOutlined, EyeOutlined, PlusOutlined, SearchOutlined, UpOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
 
-import { Button, Col, Form, Input, Modal, Popconfirm, Row, Select, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Button, Col, Form, Input, Modal, Row, Select, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
@@ -21,8 +21,11 @@ import { getDictionaryOptions } from '@/modules/dictionaries/api'
 import {
   createProject,
   deleteProject,
+  getProjectDeleteCheck,
   getProjects,
   updateProject,
+  type ProjectDeleteCheck,
+  type ProjectDeletePayload,
   type ProjectFilters,
   type ProjectFormValues,
   type ProjectSummary,
@@ -51,11 +54,15 @@ export function ProjectListPage() {
   const queryClient = useQueryClient()
   const [searchForm] = Form.useForm<SearchFormValues>()
   const [editorForm] = Form.useForm<ProjectEditorValues>()
+  const [deleteForm] = Form.useForm<ProjectDeletePayload>()
   const [messageApi, contextHolder] = message.useMessage()
+  const [modalApi, modalContextHolder] = Modal.useModal()
   const [filters, setFilters] = useState<ProjectFilters>({})
   const [editingProject, setEditingProject] = useState<ProjectSummary | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [deletingProject, setDeletingProject] = useState<ProjectSummary | null>(null)
+  const [deleteCheck, setDeleteCheck] = useState<ProjectDeleteCheck | null>(null)
   const undertakingUnitOptionsQuery = useQuery({
     queryKey: ['dictionaries.options', 'undertaking_unit'],
     queryFn: () => getDictionaryOptions('undertaking_unit'),
@@ -83,11 +90,19 @@ export function ProjectListPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: deleteProject,
+    mutationFn: async ({ projectId, payload }: { projectId: number, payload?: ProjectDeletePayload }) =>
+      deleteProject(projectId, payload),
     onSuccess: async () => {
       messageApi.success('项目已删除')
+      setDeletingProject(null)
+      setDeleteCheck(null)
+      deleteForm.resetFields()
       await queryClient.invalidateQueries({ queryKey: ['projects.list'] })
     },
+  })
+
+  const deleteCheckMutation = useMutation({
+    mutationFn: getProjectDeleteCheck,
   })
 
   const projects = projectsQuery.data ?? []
@@ -157,24 +172,39 @@ export function ProjectListPage() {
               }}
             />
           </Tooltip>
-          <Popconfirm
-            title="确认删除该项目？"
-            description="如该项目已有关联开票或回款，后端会拒绝删除。"
-            onConfirm={async () => {
-              try {
-                await deleteMutation.mutateAsync(record.id)
-              }
-              catch (error) {
-                if (isApiError(error)) {
-                  messageApi.error(error.message)
+          <Tooltip title="删除项目">
+            <Button
+              type="text"
+              danger
+              aria-label={`删除 ${record.name}`}
+              icon={<DeleteOutlined />}
+              onClick={async () => {
+                try {
+                  const currentDeleteCheck = await deleteCheckMutation.mutateAsync(record.id)
+                  if (!currentDeleteCheck.requiresStrongConfirmation) {
+                    modalApi.confirm({
+                      title: '确认删除该项目？',
+                      content: '该项目没有关联变更、开票或回款数据，删除后无法恢复。',
+                      okText: '删除项目',
+                      okButtonProps: { danger: true },
+                      onOk: async () => {
+                        await deleteMutation.mutateAsync({ projectId: record.id })
+                      },
+                    })
+                    return
+                  }
+                  deleteForm.resetFields()
+                  setDeletingProject(record)
+                  setDeleteCheck(currentDeleteCheck)
                 }
-              }
-            }}
-          >
-            <Tooltip title="删除项目">
-              <Button type="text" danger aria-label={`删除 ${record.name}`} icon={<DeleteOutlined />} />
-            </Tooltip>
-          </Popconfirm>
+                catch (error) {
+                  if (isApiError(error)) {
+                    messageApi.error(error.message)
+                  }
+                }
+              }}
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -202,6 +232,7 @@ export function ProjectListPage() {
   return (
     <div className="page-stack">
       {contextHolder}
+      {modalContextHolder}
       <PageHeader
         eyebrow="Projects"
         title={(
@@ -473,6 +504,72 @@ export function ProjectListPage() {
               </Form.Item>
             </Col>
           </Row>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="高风险删除项目"
+        open={Boolean(deletingProject && deleteCheck?.requiresStrongConfirmation)}
+        onCancel={() => {
+          setDeletingProject(null)
+          setDeleteCheck(null)
+          deleteForm.resetFields()
+        }}
+        onOk={() => deleteForm.submit()}
+        confirmLoading={deleteMutation.isPending}
+        okText="确认级联删除"
+        okButtonProps={{ danger: true }}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary">
+          该项目存在以下关联数据：
+          {[
+            deleteCheck?.hasProjectChanges ? '变更记录' : null,
+            deleteCheck?.hasInvoices ? '开票记录' : null,
+            deleteCheck?.hasPayments ? '回款记录' : null,
+          ].filter(Boolean).join('、')}
+          。删除后将级联硬删除全部关联数据。
+        </Typography.Paragraph>
+        <Form<ProjectDeletePayload>
+          form={deleteForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            if (!deletingProject) {
+              return
+            }
+            try {
+              await deleteMutation.mutateAsync({
+                projectId: deletingProject.id,
+                payload: {
+                  contractNo: values.contractNo.trim(),
+                  password: values.password,
+                },
+              })
+            }
+            catch (error) {
+              if (isApiError(error)) {
+                messageApi.error(error.message)
+              }
+            }
+          }}
+        >
+          <Form.Item label="当前项目合同号">
+            <Typography.Text strong>{deletingProject?.contractNo}</Typography.Text>
+          </Form.Item>
+          <Form.Item
+            label="再次输入项目合同号"
+            name="contractNo"
+            rules={[{ required: true, message: '请输入项目合同号' }]}
+          >
+            <Input placeholder={`请输入 ${deletingProject?.contractNo ?? ''}`} />
+          </Form.Item>
+          <Form.Item
+            label="当前登录密码"
+            name="password"
+            rules={[{ required: true, message: '请输入当前登录密码' }]}
+          >
+            <Input.Password placeholder="请输入当前登录密码" />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

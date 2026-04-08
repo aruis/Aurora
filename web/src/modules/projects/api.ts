@@ -37,6 +37,19 @@ export type ProjectDetail = {
   changes: ProjectChangeRecord[]
 }
 
+export type ProjectDeleteCheck = {
+  requiresStrongConfirmation: boolean
+  hasProjectChanges: boolean
+  hasInvoices: boolean
+  hasPayments: boolean
+  contractNo: string
+}
+
+export type ProjectDeletePayload = {
+  contractNo: string
+  password: string
+}
+
 export type ProjectFormValues = {
   name: string
   customer: string
@@ -112,6 +125,11 @@ export async function getProject(projectId: number) {
   return data
 }
 
+export async function getProjectDeleteCheck(projectId: number) {
+  const { data } = await http.get<ProjectDeleteCheck>(`/api/projects/${projectId}/delete-check`)
+  return data
+}
+
 export async function createProject(payload: ProjectFormValues) {
   const { data } = await http.post<ProjectSummary>('/api/projects', payload)
   return data
@@ -122,8 +140,8 @@ export async function updateProject(projectId: number, payload: ProjectFormValue
   return data
 }
 
-export async function deleteProject(projectId: number) {
-  await http.delete(`/api/projects/${projectId}`)
+export async function deleteProject(projectId: number, payload?: ProjectDeletePayload) {
+  await http.delete(`/api/projects/${projectId}`, payload ? { data: payload } : undefined)
 }
 
 export async function getInvoices(projectId: number) {

@@ -11,6 +11,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
 	List<Payment> findByProjectIdOrderByPaymentDateDescIdDesc(Long projectId);
 
+	void deleteByProjectId(Long projectId);
+
 	boolean existsByProjectId(Long projectId);
 
 	boolean existsByInvoiceId(Long invoiceId);

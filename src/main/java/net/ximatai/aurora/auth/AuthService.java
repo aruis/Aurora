@@ -29,4 +29,12 @@ public class AuthService {
 		}
 		user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
 	}
+
+	@Transactional(readOnly = true)
+	public void verifyPassword(Long userId, String password, String errorMessage) {
+		AppUser user = userRepository.findById(userId).orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+		if (password == null || password.isBlank() || !passwordEncoder.matches(password, user.getPasswordHash())) {
+			throw new BusinessException(HttpStatus.BAD_REQUEST, errorMessage);
+		}
+	}
 }

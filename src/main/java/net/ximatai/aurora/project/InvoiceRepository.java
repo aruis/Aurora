@@ -10,6 +10,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
 	List<Invoice> findByProjectIdOrderByInvoiceDateDescIdDesc(Long projectId);
 
+	void deleteByProjectId(Long projectId);
+
 	boolean existsByProjectId(Long projectId);
 
 	@Query("""
