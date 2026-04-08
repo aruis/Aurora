@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityNotFoundException;
 import net.ximatai.aurora.auth.AppUserPrincipal;
 import net.ximatai.aurora.common.BusinessException;
+import net.ximatai.aurora.dictionary.DictionaryService;
+import net.ximatai.aurora.dictionary.DictionaryType;
 import net.ximatai.aurora.operationlog.OperationLogService;
 
 @Service
@@ -26,26 +29,33 @@ public class ProjectService {
 	private final PaymentRepository paymentRepository;
 	private final ProjectChangeRepository projectChangeRepository;
 	private final OperationLogService operationLogService;
+	private final DictionaryService dictionaryService;
 
 	public ProjectService(ProjectRepository projectRepository, InvoiceRepository invoiceRepository, PaymentRepository paymentRepository,
-		ProjectChangeRepository projectChangeRepository, OperationLogService operationLogService) {
+		ProjectChangeRepository projectChangeRepository, OperationLogService operationLogService, DictionaryService dictionaryService) {
 		this.projectRepository = projectRepository;
 		this.invoiceRepository = invoiceRepository;
 		this.paymentRepository = paymentRepository;
 		this.projectChangeRepository = projectChangeRepository;
 		this.operationLogService = operationLogService;
+		this.dictionaryService = dictionaryService;
 	}
 
 	@Transactional(readOnly = true)
-	public List<ProjectSummary> list(String name, String customer, String contractNo, LocalDate signingDateStart, LocalDate signingDateEnd) {
-		return projectRepository.search(
+	public List<ProjectSummary> list(String name, String customer, String responsibleDepartment, String undertakingUnit, String category,
+		String contractNo, String paymentMethod, String remark, LocalDate signingDateStart, LocalDate signingDateEnd) {
+		List<ProjectSummaryRow> rows = projectRepository.search(
 			blankToNull(name),
 			blankToNull(customer),
+			blankToNull(responsibleDepartment),
+			blankToNull(undertakingUnit),
+			blankToNull(category),
 			blankToNull(contractNo),
+			blankToNull(paymentMethod),
+			blankToNull(remark),
 			signingDateStart,
-			signingDateEnd).stream()
-			.map(ProjectService::toSummary)
-			.toList();
+			signingDateEnd);
+		return toSummaries(rows);
 	}
 
 	@Transactional(readOnly = true)
@@ -54,7 +64,7 @@ public class ProjectService {
 		List<ProjectChangeResponse> changes = projectChangeRepository.findByProjectIdOrderByCreatedAtDescIdDesc(id).stream()
 			.map(ProjectChangeResponse::from)
 			.toList();
-		return new ProjectDetailResponse(toSummary(summary), changes);
+		return new ProjectDetailResponse(toSummaries(List.of(summary)).getFirst(), changes);
 	}
 
 	public ProjectSummary create(ProjectRequest request) {
@@ -72,6 +82,8 @@ public class ProjectService {
 		apply(project, request);
 		if (!changes.isEmpty()) {
 			recordProjectChange(project, changes);
+			operationLogService.log("项目管理", "编辑项目", "项目", String.valueOf(project.getId()), project.getName(),
+				"更新了 " + changes.size() + " 项内容");
 		}
 		return getSummary(project.getId());
 	}
@@ -89,8 +101,8 @@ public class ProjectService {
 	}
 
 	private void apply(Project project, ProjectRequest request) {
-		validateSelection(request.undertakingUnit(), UndertakingUnit::isSupported, "承接单位不合法");
-		validateSelection(request.category(), ProjectCategory::isSupported, "类别不合法");
+		validateSelection(request.undertakingUnit(), DictionaryType.UNDERTAKING_UNIT, "承接单位不合法");
+		validateSelection(request.category(), DictionaryType.PROJECT_CATEGORY, "类别不合法");
 		project.setName(request.name());
 		project.setCustomer(request.customer());
 		project.setContractNo(request.contractNo());
@@ -108,13 +120,27 @@ public class ProjectService {
 		return value == null || value.isBlank() ? null : value;
 	}
 
-	private static void validateSelection(String value, java.util.function.Predicate<String> checker, String message) {
-		if (!checker.test(value)) {
+	private void validateSelection(String value, DictionaryType type, String message) {
+		if (!dictionaryService.isEnabledCodeSupported(type, value)) {
 			throw new BusinessException(HttpStatus.BAD_REQUEST, message);
 		}
 	}
 
-	private static ProjectSummary toSummary(ProjectSummaryRow row) {
+	private List<ProjectSummary> toSummaries(List<ProjectSummaryRow> rows) {
+		Map<String, String> undertakingUnitLabels = dictionaryService.resolveLabels(
+			DictionaryType.UNDERTAKING_UNIT,
+			rows.stream().map(ProjectSummaryRow::undertakingUnit).filter(Objects::nonNull).distinct().toList()
+		);
+		Map<String, String> categoryLabels = dictionaryService.resolveLabels(
+			DictionaryType.PROJECT_CATEGORY,
+			rows.stream().map(ProjectSummaryRow::category).filter(Objects::nonNull).distinct().toList()
+		);
+		return rows.stream()
+			.map(row -> toSummary(row, undertakingUnitLabels, categoryLabels))
+			.toList();
+	}
+
+	private static ProjectSummary toSummary(ProjectSummaryRow row, Map<String, String> undertakingUnitLabels, Map<String, String> categoryLabels) {
 		BigDecimal invoicedAmount = row.invoicedAmount();
 		BigDecimal receivedAmount = row.receivedAmount();
 		BigDecimal accrualAmount = invoicedAmount.subtract(receivedAmount);
@@ -132,7 +158,9 @@ public class ProjectService {
 			row.contractAmount(),
 			row.responsibleDepartment(),
 			row.undertakingUnit(),
+			undertakingUnitLabels.getOrDefault(row.undertakingUnit(), row.undertakingUnit()),
 			row.category(),
+			categoryLabels.getOrDefault(row.category(), row.category()),
 			row.contractPeriod(),
 			row.paymentMethod(),
 			row.remark(),
@@ -145,7 +173,7 @@ public class ProjectService {
 	}
 
 	private ProjectSummary getSummary(Long id) {
-		return toSummary(getSummaryRow(id));
+		return toSummaries(List.of(getSummaryRow(id))).getFirst();
 	}
 
 	private ProjectSummaryRow getSummaryRow(Long id) {
@@ -180,8 +208,12 @@ public class ProjectService {
 		appendChange(changes, "签订日期", project.getSigningDate(), request.signingDate());
 		appendChange(changes, "合同金额", project.getContractAmount(), request.contractAmount());
 		appendChange(changes, "责任部门", project.getResponsibleDepartment(), blankToNull(request.responsibleDepartment()));
-		appendChange(changes, "承接单位", project.getUndertakingUnit(), request.undertakingUnit());
-		appendChange(changes, "类别", project.getCategory(), request.category());
+		appendChange(changes, "承接单位",
+			dictionaryService.resolveLabel(DictionaryType.UNDERTAKING_UNIT, project.getUndertakingUnit()),
+			dictionaryService.resolveLabel(DictionaryType.UNDERTAKING_UNIT, request.undertakingUnit()));
+		appendChange(changes, "类别",
+			dictionaryService.resolveLabel(DictionaryType.PROJECT_CATEGORY, project.getCategory()),
+			dictionaryService.resolveLabel(DictionaryType.PROJECT_CATEGORY, request.category()));
 		appendChange(changes, "合同工期", project.getContractPeriod(), blankToNull(request.contractPeriod()));
 		appendChange(changes, "付款方式", project.getPaymentMethod(), blankToNull(request.paymentMethod()));
 		appendChange(changes, "备注", project.getRemark(), blankToNull(request.remark()));

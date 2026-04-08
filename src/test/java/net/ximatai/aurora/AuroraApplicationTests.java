@@ -39,6 +39,12 @@ import net.ximatai.aurora.user.RoleRepository;
 @AutoConfigureMockMvc
 class AuroraApplicationTests {
 
+	private static final String UNIT_FIFTH_TEAM = "FIFTH_TEAM";
+	private static final String UNIT_SECOND_SURVEY_INSTITUTE = "SECOND_SURVEY_INSTITUTE";
+	private static final String CATEGORY_MARKET_PROJECT = "MARKET_PROJECT";
+	private static final String CATEGORY_PLATFORM_COMPANY = "PLATFORM_COMPANY";
+	private static final String CATEGORY_GOVERNMENT_FINANCE = "GOVERNMENT_FINANCE";
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -181,11 +187,76 @@ class AuroraApplicationTests {
 					  "contractNo":"HT-001",
 					  "signingDate":"2026-04-03",
 					  "contractAmount":1000,
-					  "undertakingUnit":"五队",
-					  "category":"市场项目"
+					  "undertakingUnit":"%s",
+					  "category":"%s"
+					}
+					""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT)))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void dictionariesAreExposedAsConfigurableOptions() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+
+		mockMvc.perform(get("/api/dictionaries")
+				.session(adminSession)
+				.param("type", "undertaking_unit"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].code").value(UNIT_FIFTH_TEAM))
+			.andExpect(jsonPath("$[0].label").value("五队"));
+
+		mockMvc.perform(get("/api/dictionaries/admin").session(adminSession))
+			.andExpect(status().isOk())
+			.andExpect(content().string(containsString("undertaking_unit")))
+			.andExpect(content().string(containsString("project_category")));
+	}
+
+	@Test
+	void dictionaryManagementWritesOperationLogs() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+
+		MvcResult createResult = mockMvc.perform(post("/api/dictionaries").session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "type":"undertaking_unit",
+					  "code":"UNIT_DELTA",
+					  "label":"承接单位 D",
+					  "sortOrder":40,
+					  "enabled":true
 					}
 					"""))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("UNIT_DELTA"))
+			.andReturn();
+
+		Long entryId = readId(createResult);
+
+		mockMvc.perform(put("/api/dictionaries/{id}", entryId).session(adminSession)
+				.contentType(APPLICATION_JSON)
+				.content("""
+					{
+					  "type":"undertaking_unit",
+					  "code":"UNIT_DELTA",
+					  "label":"承接单位 D2",
+					  "sortOrder":45,
+					  "enabled":false
+					}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.label").value("承接单位 D2"));
+
+		mockMvc.perform(delete("/api/dictionaries/{id}", entryId).session(adminSession))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/operation-logs")
+				.session(adminSession)
+				.param("moduleName", "数据字典")
+				.param("actionName", "字典项"))
+			.andExpect(status().isOk())
+			.andExpect(content().string(containsString("新增字典项")))
+			.andExpect(content().string(containsString("编辑字典项")))
+			.andExpect(content().string(containsString("删除字典项")));
 	}
 
 	@Test
@@ -262,10 +333,10 @@ class AuroraApplicationTests {
 			  "contractNo":"HT-2026-002",
 			  "signingDate":"2026-04-08",
 			  "contractAmount":6666.00,
-			  "undertakingUnit":"五队",
-			  "category":"市场项目"
+			  "undertakingUnit":"%s",
+			  "category":"%s"
 			}
-			""");
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
 		Long projectC = createProject(adminSession, """
 			{
 			  "name":"晨曦项目",
@@ -273,10 +344,10 @@ class AuroraApplicationTests {
 			  "contractNo":"HT-2026-003",
 			  "signingDate":"2026-04-10",
 			  "contractAmount":9999.00,
-			  "undertakingUnit":"五队",
-			  "category":"市场项目"
+			  "undertakingUnit":"%s",
+			  "category":"%s"
 			}
-			""");
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
 
 		Long invoiceA = createInvoice(adminSession, projectA, """
 			{"amount":1000,"invoiceDate":"2026-04-05","invoiceNo":"FP-A-001"}
@@ -482,10 +553,10 @@ class AuroraApplicationTests {
 			  "contractNo":"HT-2026-009",
 			  "signingDate":"2026-04-09",
 			  "contractAmount":2000,
-			  "undertakingUnit":"五队",
-			  "category":"市场项目"
+			  "undertakingUnit":"%s",
+			  "category":"%s"
 			}
-			""");
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
 		Long invoiceId = createInvoice(adminSession, projectA, """
 			{"amount":500,"invoiceDate":"2026-04-05","invoiceNo":"FP-X-001"}
 			""");
@@ -615,10 +686,10 @@ class AuroraApplicationTests {
 			  "contractNo":"HT-2026-100",
 			  "signingDate":"2026-04-11",
 			  "contractAmount":5200,
-			  "undertakingUnit":"二勘院",
-			  "category":"平台公司"
+			  "undertakingUnit":"%s",
+			  "category":"%s"
 			}
-			""");
+			""".formatted(UNIT_SECOND_SURVEY_INSTITUTE, CATEGORY_PLATFORM_COMPANY));
 		Long invoiceId = createInvoice(adminSession, projectId, """
 			{"amount":1200,"invoiceDate":"2026-04-11","invoiceNo":"FP-G-001"}
 			""");
@@ -630,14 +701,18 @@ class AuroraApplicationTests {
 				.session(adminSession)
 				.param("name", "")
 				.param("customer", "星河")
+				.param("undertakingUnit", UNIT_SECOND_SURVEY_INSTITUTE)
+				.param("category", CATEGORY_PLATFORM_COMPANY)
 				.param("contractNo", "")
 				.param("signingDateStart", "2026-04-01")
 				.param("signingDateEnd", "2026-04-30"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.length()").value(1))
 			.andExpect(jsonPath("$[0].id").value(projectId))
-			.andExpect(jsonPath("$[0].undertakingUnit").value("二勘院"))
-			.andExpect(jsonPath("$[0].category").value("平台公司"));
+			.andExpect(jsonPath("$[0].undertakingUnit").value(UNIT_SECOND_SURVEY_INSTITUTE))
+			.andExpect(jsonPath("$[0].undertakingUnitLabel").value("二勘院"))
+			.andExpect(jsonPath("$[0].category").value(CATEGORY_PLATFORM_COMPANY))
+			.andExpect(jsonPath("$[0].categoryLabel").value("平台公司"));
 
 		mockMvc.perform(get("/api/finance-stats")
 				.session(adminSession)
@@ -648,6 +723,50 @@ class AuroraApplicationTests {
 			.andExpect(jsonPath("$.summary.paymentTotal").value(0))
 			.andExpect(jsonPath("$.summary.projectCount").value(0))
 			.andExpect(jsonPath("$.projects.length()").value(0));
+	}
+
+	@Test
+	void projectListSupportsNewLedgerFilters() throws Exception {
+		MockHttpSession adminSession = login("admin", "admin123");
+		createProject(adminSession, """
+			{
+			  "name":"城市更新项目",
+			  "customer":"建发集团",
+			  "contractNo":"HT-2026-201",
+			  "signingDate":"2026-04-01",
+			  "contractAmount":6000,
+			  "responsibleDepartment":"经营一部",
+			  "undertakingUnit":"%s",
+			  "category":"%s",
+			  "paymentMethod":"分期付款",
+			  "remark":"重点盯回款"
+			}
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
+		createProject(adminSession, """
+			{
+			  "name":"财政专项项目",
+			  "customer":"财政局",
+			  "contractNo":"HT-2026-202",
+			  "signingDate":"2026-04-02",
+			  "contractAmount":8000,
+			  "responsibleDepartment":"经营二部",
+			  "undertakingUnit":"%s",
+			  "category":"%s",
+			  "paymentMethod":"验收后一次性支付",
+			  "remark":"流程稳定"
+			}
+			""".formatted(UNIT_SECOND_SURVEY_INSTITUTE, CATEGORY_GOVERNMENT_FINANCE));
+
+		mockMvc.perform(get("/api/projects")
+				.session(adminSession)
+				.param("responsibleDepartment", "经营一")
+				.param("undertakingUnit", UNIT_FIFTH_TEAM)
+				.param("category", CATEGORY_MARKET_PROJECT)
+				.param("paymentMethod", "分期")
+				.param("remark", "回款"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.length()").value(1))
+			.andExpect(jsonPath("$[0].name").value("城市更新项目"));
 	}
 
 	@Test
@@ -693,13 +812,13 @@ class AuroraApplicationTests {
 					  "signingDate":"2026-04-09",
 					  "contractAmount":9999.99,
 					  "responsibleDepartment":"经营部",
-					  "undertakingUnit":"二勘院",
-					  "category":"平台公司",
+					  "undertakingUnit":"%s",
+					  "category":"%s",
 					  "contractPeriod":"180天",
 					  "paymentMethod":"分期付款",
 					  "remark":"补充说明"
 					}
-					"""))
+					""".formatted(UNIT_SECOND_SURVEY_INSTITUTE, CATEGORY_PLATFORM_COMPANY)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.name").value("Aurora 新项目"));
 
@@ -716,9 +835,9 @@ class AuroraApplicationTests {
 		mockMvc.perform(get("/api/operation-logs")
 				.session(adminSession)
 				.param("moduleName", "项目管理")
-				.param("actionName", "编辑项目"))
+				.param("actionName", "编辑"))
 			.andExpect(status().isOk())
-			.andExpect(content().string(not(containsString("编辑项目"))));
+			.andExpect(content().string(containsString("编辑项目")));
 
 		mockMvc.perform(delete("/api/projects/{id}", projectId).session(adminSession))
 			.andExpect(status().isConflict())
@@ -754,10 +873,10 @@ class AuroraApplicationTests {
 			  "contractNo":"HT-2026-001",
 			  "signingDate":"2026-04-03",
 			  "contractAmount":8888.88,
-			  "undertakingUnit":"五队",
-			  "category":"市场项目"
+			  "undertakingUnit":"%s",
+			  "category":"%s"
 			}
-			""");
+			""".formatted(UNIT_FIFTH_TEAM, CATEGORY_MARKET_PROJECT));
 	}
 
 	private Long createProject(MockHttpSession session, String json) throws Exception {

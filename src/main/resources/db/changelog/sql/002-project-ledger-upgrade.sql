@@ -13,7 +13,7 @@ ALTER TABLE payments ADD COLUMN invoice_id INTEGER;
 CREATE INDEX idx_payments_invoice_id ON payments(invoice_id);
 
 UPDATE projects
-SET undertaking_unit = '五队',
-    category = '市场项目'
+SET undertaking_unit = 'FIFTH_TEAM',
+    category = 'MARKET_PROJECT'
 WHERE undertaking_unit IS NULL
    OR category IS NULL;

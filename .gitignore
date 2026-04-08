@@ -2,6 +2,7 @@ HELP.md
 .gradle
 build/
 logs/
+.run/
 *.log
 *.tmp
 *.swp

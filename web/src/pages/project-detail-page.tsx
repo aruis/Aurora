@@ -31,6 +31,7 @@ import { PageSection } from '@/components/page-section'
 import { applyFormErrors } from '@/lib/forms'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { isApiError } from '@/lib/http'
+import { getDictionaryOptions } from '@/modules/dictionaries/api'
 import {
   createInvoice,
   createPayment,
@@ -95,6 +96,14 @@ export function ProjectDetailPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null)
   const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null)
+  const undertakingUnitOptionsQuery = useQuery({
+    queryKey: ['dictionaries.options', 'undertaking_unit'],
+    queryFn: () => getDictionaryOptions('undertaking_unit'),
+  })
+  const categoryOptionsQuery = useQuery({
+    queryKey: ['dictionaries.options', 'project_category'],
+    queryFn: () => getDictionaryOptions('project_category'),
+  })
 
   const projectQuery = useQuery({
     queryKey: ['projects.detail', resolvedProjectId],
@@ -281,6 +290,8 @@ export function ProjectDetailPage() {
   const project = projectQuery.data
   const projectInfo = project?.project
   const paymentInvoiceOptions = paymentInvoiceOptionsQuery.data ?? []
+  const undertakingUnitOptions = undertakingUnitOptionsQuery.data?.map(item => ({ label: item.label, value: item.code })) ?? []
+  const categoryOptions = categoryOptionsQuery.data?.map(item => ({ label: item.label, value: item.code })) ?? []
 
   return (
     <div className="page-stack">
@@ -335,8 +346,8 @@ export function ProjectDetailPage() {
             items={[
               { key: 'customer', label: '委托单位', children: projectInfo?.customer },
               { key: 'responsibleDepartment', label: '责任部门', children: renderOptionalText(projectInfo?.responsibleDepartment) },
-              { key: 'undertakingUnit', label: '承接单位', children: renderOptionalText(projectInfo?.undertakingUnit) },
-              { key: 'category', label: '类别', children: renderOptionalText(projectInfo?.category) },
+              { key: 'undertakingUnit', label: '承接单位', children: renderOptionalText(projectInfo?.undertakingUnitLabel) },
+              { key: 'category', label: '类别', children: renderOptionalText(projectInfo?.categoryLabel) },
               { key: 'contractNo', label: '合同号', children: projectInfo?.contractNo },
               { key: 'signingDate', label: '签订日期', children: formatDate(projectInfo?.signingDate) },
               { key: 'contractPeriod', label: '合同工期', children: renderOptionalText(projectInfo?.contractPeriod) },
@@ -499,23 +510,12 @@ export function ProjectDetailPage() {
             </Col>
             <Col xs={24} md={12}>
               <Form.Item label="承接单位" name="undertakingUnit" rules={[{ required: true, message: '请选择承接单位' }]}>
-                <Select
-                  options={[
-                    { label: '五队', value: '五队' },
-                    { label: '二勘院', value: '二勘院' },
-                  ]}
-                />
+                <Select options={undertakingUnitOptions} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item label="类别" name="category" rules={[{ required: true, message: '请选择类别' }]}>
-                <Select
-                  options={[
-                    { label: '市场项目', value: '市场项目' },
-                    { label: '平台公司', value: '平台公司' },
-                    { label: '政府财政', value: '政府财政' },
-                  ]}
-                />
+                <Select options={categoryOptions} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>

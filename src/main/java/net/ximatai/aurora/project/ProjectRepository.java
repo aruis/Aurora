@@ -9,6 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
+	boolean existsByUndertakingUnit(String undertakingUnit);
+
+	boolean existsByCategory(String category);
+
+	long countByUndertakingUnit(String undertakingUnit);
+
+	long countByCategory(String category);
+
 	@Query("""
 		select new net.ximatai.aurora.project.ProjectSummaryRow(
 			p.id,
@@ -29,12 +37,28 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 		from Project p
 		where (:name is null or p.name like concat('%', :name, '%'))
 		  and (:customer is null or p.customer like concat('%', :customer, '%'))
+		  and (:responsibleDepartment is null or p.responsibleDepartment like concat('%', :responsibleDepartment, '%'))
+		  and (:undertakingUnit is null or p.undertakingUnit = :undertakingUnit)
+		  and (:category is null or p.category = :category)
 		  and (:contractNo is null or p.contractNo like concat('%', :contractNo, '%'))
+		  and (:paymentMethod is null or p.paymentMethod like concat('%', :paymentMethod, '%'))
+		  and (:remark is null or p.remark like concat('%', :remark, '%'))
 		  and (:signingDateStart is null or p.signingDate >= :signingDateStart)
 		  and (:signingDateEnd is null or p.signingDate <= :signingDateEnd)
 		order by p.id desc
 		""")
-	List<ProjectSummaryRow> search(String name, String customer, String contractNo, LocalDate signingDateStart, LocalDate signingDateEnd);
+	List<ProjectSummaryRow> search(
+		String name,
+		String customer,
+		String responsibleDepartment,
+		String undertakingUnit,
+		String category,
+		String contractNo,
+		String paymentMethod,
+		String remark,
+		LocalDate signingDateStart,
+		LocalDate signingDateEnd
+	);
 
 	@Query("""
 		select new net.ximatai.aurora.project.ProjectSummaryRow(

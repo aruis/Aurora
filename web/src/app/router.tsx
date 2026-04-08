@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/protected-route'
 import { PublicOnlyRoute } from '@/components/public-only-route'
 import { AppShell } from '@/layout/app-shell'
 import { DashboardPage } from '@/pages/dashboard-page'
+import { DictionaryManagementPage } from '@/pages/dictionary-management-page'
 import { FinanceStatsPage } from '@/pages/finance-stats-page'
 import { LoginPage } from '@/pages/login-page'
 import { OperationLogPage } from '@/pages/operation-log-page'
@@ -41,6 +42,7 @@ export function AppRouter() {
             <Route path="projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="projects/:projectId/changes" element={<ProjectChangeHistoryPage />} />
             <Route path="users" element={<UserManagementPage />} />
+            <Route path="dictionaries" element={<DictionaryManagementPage />} />
             <Route path="operation-logs" element={<OperationLogPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

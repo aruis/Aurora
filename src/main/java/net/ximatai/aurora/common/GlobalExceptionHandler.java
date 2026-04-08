@@ -35,6 +35,11 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(new ApiError("请求参数校验失败", errors));
 	}
 
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex) {
+		return ResponseEntity.badRequest().body(new ApiError(ex.getMessage()));
+	}
+
 	@ExceptionHandler(AccessDeniedException.class)
 	public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex) {
 		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiError("无权限访问"));

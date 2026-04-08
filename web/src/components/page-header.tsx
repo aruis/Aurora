@@ -3,7 +3,7 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { Space, Typography } from 'antd'
 
 type PageHeaderProps = PropsWithChildren<{
-  title: string
+  title: ReactNode
   description?: string
   extra?: ReactNode
   eyebrow?: string

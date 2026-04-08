@@ -13,9 +13,9 @@ public interface OperationLogRepository extends JpaRepository<OperationLog, Long
 	@Query("""
 		select l from OperationLog l
 		where l.operatedAt >= :cutoff
-		  and (:operatorUsername is null or l.operatorUsername = :operatorUsername)
+		  and (:operatorUsername is null or l.operatorUsername like concat('%', :operatorUsername, '%'))
 		  and (:moduleName is null or l.moduleName = :moduleName)
-		  and (:actionName is null or l.actionName = :actionName)
+		  and (:actionName is null or l.actionName like concat('%', :actionName, '%'))
 		order by l.operatedAt desc, l.id desc
 		""")
 	List<OperationLog> searchRecent(@Param("cutoff") LocalDateTime cutoff,

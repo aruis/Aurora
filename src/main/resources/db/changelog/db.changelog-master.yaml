@@ -23,3 +23,9 @@ databaseChangeLog:
       sqlFile:
         path: db/changelog/sql/004-project-change-history.sql
         relativeToChangelogFile: false
+  - changeSet:
+      id: 005-dictionary
+      author: codex
+      sqlFile:
+        path: db/changelog/sql/005-dictionary.sql
+        relativeToChangelogFile: false

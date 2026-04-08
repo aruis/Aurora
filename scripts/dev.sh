@@ -198,40 +198,83 @@ fi
 
 resolve_pids
 
+backend_already_running=false
+frontend_already_running=false
+started_backend=false
+started_frontend=false
+
 if is_running "${BACKEND_PID:-}"; then
+  backend_already_running=true
   echo "后端已经在运行中: $BACKEND_PID"
-  exit 1
+else
+  BACKEND_PID=""
 fi
 
 if is_running "${FRONTEND_PID:-}"; then
+  frontend_already_running=true
   echo "前端已经在运行中: $FRONTEND_PID"
-  exit 1
+else
+  FRONTEND_PID=""
 fi
 
-BACKEND_PID=""
-FRONTEND_PID=""
+if [[ "$backend_already_running" == true && "$frontend_already_running" == true ]]; then
+  echo "Aurora 本地开发环境已在运行。"
+  write_pids
+  exit 0
+fi
 
 cleanup() {
   local exit_code=$?
-  stop_pid "$FRONTEND_PID" "frontend"
-  stop_pid "$BACKEND_PID" "backend"
+  if [[ "$started_frontend" == true ]]; then
+    stop_pid "$FRONTEND_PID" "frontend"
+  fi
+  if [[ "$started_backend" == true ]]; then
+    stop_pid "$BACKEND_PID" "backend"
+  fi
   remove_pids
   exit "$exit_code"
 }
 
 trap cleanup INT TERM EXIT
 
-echo "[backend] 启动 Spring Boot: http://localhost:51889"
-(cd "$ROOT_DIR" && ./gradlew bootRun) &
-BACKEND_PID=$!
+if [[ "$backend_already_running" != true ]]; then
+  echo "[backend] 启动 Spring Boot: http://localhost:51889"
+  (cd "$ROOT_DIR" && ./gradlew bootRun) &
+  BACKEND_PID=$!
+  started_backend=true
+fi
 
-echo "[frontend] 启动 Vite: http://localhost:5173"
-(cd "$WEB_DIR" && pnpm dev --host 0.0.0.0) &
-FRONTEND_PID=$!
+if [[ "$frontend_already_running" != true ]]; then
+  echo "[frontend] 启动 Vite: http://localhost:5173"
+  (cd "$WEB_DIR" && pnpm dev --host 0.0.0.0) &
+  FRONTEND_PID=$!
+  started_frontend=true
+fi
 write_pids
 
 echo "Aurora 本地开发环境已启动。"
 echo "关闭命令: ./scripts/dev.sh off"
 echo "状态查看: ./scripts/dev.sh status"
 
-wait -n "$BACKEND_PID" "$FRONTEND_PID"
+wait_for_pid() {
+  local pid="$1"
+  if [[ -n "$pid" ]]; then
+    wait "$pid"
+  fi
+}
+
+if [[ "$started_backend" == true && "$started_frontend" == true ]]; then
+  while is_running "$BACKEND_PID" && is_running "$FRONTEND_PID"; do
+    sleep 1
+  done
+  if ! is_running "$BACKEND_PID"; then
+    wait_for_pid "$BACKEND_PID"
+  fi
+  if ! is_running "$FRONTEND_PID"; then
+    wait_for_pid "$FRONTEND_PID"
+  fi
+elif [[ "$started_backend" == true ]]; then
+  wait_for_pid "$BACKEND_PID"
+elif [[ "$started_frontend" == true ]]; then
+  wait_for_pid "$FRONTEND_PID"
+fi

@@ -9,7 +9,9 @@ export type ProjectSummary = {
   contractAmount: number
   responsibleDepartment?: string | null
   undertakingUnit: string
+  undertakingUnitLabel: string
   category: string
+  categoryLabel: string
   contractPeriod?: string | null
   paymentMethod?: string | null
   remark?: string | null
@@ -52,7 +54,12 @@ export type ProjectFormValues = {
 export type ProjectFilters = {
   name?: string
   customer?: string
+  responsibleDepartment?: string
+  undertakingUnit?: string
+  category?: string
   contractNo?: string
+  paymentMethod?: string
+  remark?: string
   signingDateStart?: string
   signingDateEnd?: string
 }

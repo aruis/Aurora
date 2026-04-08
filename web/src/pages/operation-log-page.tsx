@@ -1,7 +1,8 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { Button, Form, Input, Select, Space, Table, Tag, Typography } from 'antd'
+import { Button, Col, Form, Input, Row, Select, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { PageHeader } from '@/components/page-header'
 import { PageSection } from '@/components/page-section'
@@ -20,13 +21,14 @@ const MODULE_OPTIONS = [
   { label: '认证', value: '认证' },
   { label: '用户管理', value: '用户管理' },
   { label: '项目管理', value: '项目管理' },
+  { label: '数据字典', value: '数据字典' },
   { label: '开票管理', value: '开票管理' },
   { label: '回款管理', value: '回款管理' },
 ]
 
 export function OperationLogPage() {
   const [form] = Form.useForm<FilterValues>()
-  const filters = Form.useWatch([], form) ?? {}
+  const [filters, setFilters] = useState<FilterValues>({})
 
   const operationLogsQuery = useQuery({
     queryKey: ['operation-logs.list', filters],
@@ -123,22 +125,61 @@ export function OperationLogPage() {
           <SummaryChip label="保留天数" value={String(data?.retentionDays ?? 30)} />
         </div>
 
-        <PageSection title="筛选条件" subtitle="支持按操作人、模块和动作快速定位。">
-          <Form form={form} layout="inline" initialValues={{}}>
-            <Form.Item name="operatorUsername" label="操作人">
-              <Input allowClear placeholder="例如：admin" style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item name="moduleName" label="模块">
-              <Select allowClear placeholder="全部模块" options={MODULE_OPTIONS} style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item name="actionName" label="动作">
-              <Input allowClear placeholder="例如：登录" style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item>
-              <Button icon={<SearchOutlined />} onClick={() => operationLogsQuery.refetch()}>
-                刷新
+        <PageSection
+          title="筛选条件"
+          subtitle="支持按操作人、模块和动作快速定位。"
+          extra={(
+            <div className="table-toolbar">
+              <Button
+                onClick={() => {
+                  form.resetFields()
+                  setFilters({})
+                }}
+              >
+                重置
               </Button>
-            </Form.Item>
+              <Button type="primary" htmlType="submit" form="operation-log-search-form" icon={<SearchOutlined />}>
+                查询
+              </Button>
+            </div>
+          )}
+        >
+          <Form<FilterValues>
+            form={form}
+            name="operation-log-search-form"
+            layout="vertical"
+            initialValues={{}}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !(event.target instanceof HTMLTextAreaElement)) {
+                event.preventDefault()
+                form.submit()
+              }
+            }}
+            onFinish={(values) => {
+              setFilters({
+                operatorUsername: values.operatorUsername?.trim() || undefined,
+                moduleName: values.moduleName || undefined,
+                actionName: values.actionName?.trim() || undefined,
+              })
+            }}
+          >
+            <Row gutter={[16, 4]}>
+              <Col xs={24} md={12} xl={8}>
+                <Form.Item name="operatorUsername" label="操作人">
+                  <Input allowClear placeholder="例如：admin" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} xl={8}>
+                <Form.Item name="moduleName" label="模块">
+                  <Select allowClear placeholder="全部模块" options={MODULE_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} xl={8}>
+                <Form.Item name="actionName" label="动作">
+                  <Input allowClear placeholder="例如：登录" />
+                </Form.Item>
+              </Col>
+            </Row>
           </Form>
         </PageSection>
 

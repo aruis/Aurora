@@ -31,10 +31,15 @@ public class ProjectController {
 	@PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER', 'FINANCE')")
 	public List<ProjectSummary> list(@RequestParam(required = false) String name,
 		@RequestParam(required = false) String customer,
+		@RequestParam(required = false) String responsibleDepartment,
+		@RequestParam(required = false) String undertakingUnit,
+		@RequestParam(required = false) String category,
 		@RequestParam(required = false) String contractNo,
+		@RequestParam(required = false) String paymentMethod,
+		@RequestParam(required = false) String remark,
 		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate signingDateStart,
 		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate signingDateEnd) {
-		return projectService.list(name, customer, contractNo, signingDateStart, signingDateEnd);
+		return projectService.list(name, customer, responsibleDepartment, undertakingUnit, category, contractNo, paymentMethod, remark, signingDateStart, signingDateEnd);
 	}
 
 	@GetMapping("/{id}")

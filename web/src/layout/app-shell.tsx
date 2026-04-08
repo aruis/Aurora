@@ -7,6 +7,7 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  ProfileOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
 import { Avatar, Breadcrumb, Button, Dropdown, Form, Input, Layout, Menu, Modal, Typography, message } from 'antd'
@@ -28,6 +29,7 @@ const breadcrumbNameMap: Record<string, string> = {
   projects: '项目管理',
   changes: '项目变更记录',
   users: '用户管理',
+  dictionaries: '数据字典',
   'operation-logs': '操作日志',
 }
 
@@ -44,6 +46,7 @@ export function AppShell() {
     ...(user?.roles.includes('ADMIN')
       ? [
           { key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> },
+          { key: '/dictionaries', icon: <ProfileOutlined />, label: <Link to="/dictionaries">数据字典</Link> },
           { key: '/operation-logs', icon: <FileTextOutlined />, label: <Link to="/operation-logs">操作日志</Link> },
         ]
       : []),
